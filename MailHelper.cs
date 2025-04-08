@@ -14,7 +14,7 @@ namespace Cihaz_Takip_Uygulaması
                 var smtpClient = new SmtpClient("smtp.gmail.com")
                 {
                     Port = 587,
-                    Credentials = new NetworkCredential("elberbildik277@gmail.com", "vrwithzqihngwuci"), // E-posta ve şifre
+                    Credentials = new NetworkCredential("elberbildik277@gmail.com", "vrwithzqihngwuci"),
                     EnableSsl = true,
                 };
 
@@ -26,18 +26,9 @@ namespace Cihaz_Takip_Uygulaması
                     IsBodyHtml = true,
                 };
 
-                mailMessage.To.Add(toMailAdres); // Alıcı e-posta adresi
-
-                // Mail gönderme işlemi
-                try
-                {
-                    await smtpClient.SendMailAsync(mailMessage);
-                    Console.WriteLine("Mail başarıyla gönderildi.");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Mail gönderim hatası: {ex.Message}");
-                }
+                mailMessage.To.Add(toMailAdres);
+                await smtpClient.SendMailAsync(mailMessage);
+                Console.WriteLine("Mail başarıyla gönderildi.");
             }
             catch (Exception ex)
             {

@@ -48,6 +48,7 @@ namespace Cihaz_Takip_Uygulaması
                             return;
 
                         int grupRecNo = Convert.ToInt32(row.Cells["RecNo"].Value);
+                        int CihazinGrupNumarasi= Convert.ToInt32(row.Cells["GrupRecNo"].Value);
                         string ip = row.Cells["IPNo"].Value?.ToString();
                         string aciklama = row.Cells["Aciklama"].Value?.ToString();
 
@@ -70,7 +71,6 @@ namespace Cihaz_Takip_Uygulaması
                                 AppendColoredText($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Up durumunda.", Color.Green);
                             }));
                             DBHelper.GuncelleDurum(grupRecNo, "UP");
-
                         }
                         else
                         {
@@ -85,6 +85,24 @@ namespace Cihaz_Takip_Uygulaması
 
                             // Cihaz "Down" olduğunda log kaydı ekle
                             DBHelper.CihazDownKaydi(grupRecNo);
+
+                            // E-posta gönderme işlemi ekleniyor
+                            string mailAdres = DBHelper.GetMailAdres(CihazinGrupNumarasi);  // Mail adresini DB'den al
+                            if (!string.IsNullOrEmpty(mailAdres))
+                            {
+                                // Mail gönderme
+                                await MailHelper.GonderAsync(mailAdres,
+                                                              "Cihaz Durum Bildirimi",
+                                                              $"{aciklama} cihazı {ip} Down durumunda, lütfen kontrol edin.");
+                            }
+                            else
+                            {
+                                // Mail adresi bulunamazsa hata mesajı ekle
+                                Invoke(new Action(() =>
+                                {
+                                    AppendColoredText($"[{DateTime.Now:HH:mm:ss}] Mail adresi bulunamadı ({ip}).", Color.Red);
+                                }));
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -108,6 +126,7 @@ namespace Cihaz_Takip_Uygulaması
                 HücreRenkleme.DurumRenklendir(Cihazlar);
             }));
         }
+
 
         private async Task<bool> PingAt(string ip)
         {

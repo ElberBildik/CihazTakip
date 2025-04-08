@@ -78,10 +78,10 @@ namespace Cihaz_Takip_Uygulaması
             catch (Exception ex)
             {
                 // Hata mesajını daha açıklayıcı yapabiliriz
-                throw new Exception("Mail bekleme süresi alınırken hata oluştu. Sorgu: " , ex);
+                throw new Exception("Mail bekleme süresi alınırken hata oluştu. Sorgu: ", ex);
             }
         }
-        
+
 
         // CihazGrup tablosundan mail adresini alır
         public static string GetMailAdres(int grupRecNo)
@@ -106,7 +106,7 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
-        
+
         public static void CihazDownKaydi(int cihazRecNo)
         {
             try
