@@ -122,7 +122,11 @@ namespace Cihaz_Takip_Uygulaması
 
         private async void PingAtBtn_Click(object sender, EventArgs e)
         {
-            MesajlarRchTxt.Clear(); // Mesaj kutusunu temizle
+            // Ping işlemini durdur
+            pingTimer.Stop();
+            AppendColoredText("Ping işlemi durduruldu.", Color.Blue);
+
+            // Ping işlemi başlatılıyor
             AppendColoredText("Ping işlemi başlatılıyor...", Color.Blue);
 
             var tasks = new List<Task>();
@@ -168,7 +172,7 @@ namespace Cihaz_Takip_Uygulaması
                             {
                                 row.Cells["Durum"].Value = "Down oldu, mail atılacak";
                                 row.DefaultCellStyle.BackColor = Color.Red; // Kırmızı renk
-                                AppendColoredText($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu, mail atılacak.", Color.Red);//richtextbox'a yazdık 
+                                AppendColoredText($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu, mail atılacak.", Color.Red);
                             }));
                             DBHelper.GuncelleDurum(grupRecNo, "Down oldu, mail atılacak");
                         }
@@ -190,10 +194,14 @@ namespace Cihaz_Takip_Uygulaması
             Invoke(new Action(() =>
             {
                 Cihazlar.Refresh();
-                // HücreRenkleme sınıfını kullanarak durum renklendir
+                // Durum renklendirme için HücreRenkleme sınıfını kullan
                 HücreRenkleme.DurumRenklendir(Cihazlar);
             }));
+
+            // Ping işlemini başlat
+            pingTimer.Start();
         }
+
 
         private void StopPingBtn_Click(object sender, EventArgs e)
         {
@@ -337,6 +345,7 @@ namespace Cihaz_Takip_Uygulaması
 
         private void pictureBox2_Click_1(object sender, EventArgs e)
         {
+
         }
 
     }
