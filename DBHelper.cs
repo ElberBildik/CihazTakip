@@ -99,5 +99,40 @@ namespace Cihaz_Takip_Uygulaması
                 throw new Exception("Mail adresi alınırken hata oluştu: " + ex.Message);
             }
         }
+
+        
+        public static void CihazDownKaydi(int cihazRecNo)
+        {
+            try
+            {
+                // Daha önce "down" kaydı var mı kontrol et
+                DateTime sonPingZamani = GetSonPingZamani(cihazRecNo);
+
+                // Eğer cihaz daha önce "down" olduysa yeni bir kayıt eklemeye gerek yok
+                if (sonPingZamani != DateTime.MinValue)
+                {
+                    return; // Cihazın down kaydı zaten var
+                }
+
+                // Cihaz down olduysa Log tablosuna kaydet
+                string query = @"
+                INSERT INTO Log (CihazRecNo, DownTime)
+                VALUES (@CihazRecNo, @DownTime)";
+
+                using (SqlConnection conn = new SqlConnection(ConnectionString.Get))
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@CihazRecNo", cihazRecNo);
+                    cmd.Parameters.AddWithValue("@DownTime", DateTime.Now); // Şu anki zaman
+
+                    conn.Open();
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Cihazın down kaydı eklenirken hata oluştu: " + ex.Message);
+            }
+        }
     }
 }

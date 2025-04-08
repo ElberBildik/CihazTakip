@@ -7,6 +7,9 @@ using System.Windows.Forms;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 
+
+
+
 namespace Cihaz_Takip_Uygulaması
 {
     public partial class Form1 : Form
@@ -80,6 +83,8 @@ namespace Cihaz_Takip_Uygulaması
                             }));
                             DBHelper.GuncelleDurum(grupRecNo, "Down oldu, mail atılacak");
 
+                            // Cihaz "Down" olduğunda log kaydı ekle
+                            DBHelper.CihazDownKaydi(grupRecNo);
                         }
                     }
                     catch (Exception ex)
@@ -110,7 +115,7 @@ namespace Cihaz_Takip_Uygulaması
             {
                 using (Ping ping = new Ping())
                 {
-                    PingReply reply = await ping.SendPingAsync(ip, 1000); // 1 saniye timeout
+                    PingReply reply = await ping.SendPingAsync(ip, 1000); // 1 saniye de timeout
                     return reply.Status == IPStatus.Success;
                 }
             }
@@ -175,6 +180,9 @@ namespace Cihaz_Takip_Uygulaması
                                 AppendColoredText($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu, mail atılacak.", Color.Red);
                             }));
                             DBHelper.GuncelleDurum(grupRecNo, "Down oldu, mail atılacak");
+
+                            // Cihaz "Down" olduğunda log kaydı ekle
+                            DBHelper.CihazDownKaydi(grupRecNo);
                         }
                     }
                     catch (Exception ex)
@@ -201,6 +209,7 @@ namespace Cihaz_Takip_Uygulaması
             // Ping işlemini başlat
             pingTimer.Start();
         }
+
 
 
         private void StopPingBtn_Click(object sender, EventArgs e)
@@ -335,7 +344,6 @@ namespace Cihaz_Takip_Uygulaması
 
         private void groupBox1_Enter(object sender, EventArgs e)
         {
-            // Bu metod boş kalabilir
         }
 
         private void Form1_Load(object sender, EventArgs e)
