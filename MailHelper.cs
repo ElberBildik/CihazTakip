@@ -7,7 +7,6 @@ namespace Cihaz_Takip_Uygulaması
 {
     public class MailHelper
     {
-        // Mail gönderme metodu, mail adresi DB'den alınıyor
         public static async Task GonderAsync(string toMailAdres, string konu, string mesaj)
         {
             try
@@ -15,13 +14,13 @@ namespace Cihaz_Takip_Uygulaması
                 var smtpClient = new SmtpClient("smtp.gmail.com")
                 {
                     Port = 587,
-                    Credentials = new NetworkCredential("elberbildik277@gmail.com", "dvuy vsjl mskr itwx"), // E-posta ve şifre
+                    Credentials = new NetworkCredential("elberbildik277@gmail.com", "vrwithzqihngwuci"), // E-posta ve şifre
                     EnableSsl = true,
                 };
 
                 var mailMessage = new MailMessage
                 {
-                    From = new MailAddress("elberbildik277@gmail.com"),
+                    From = new MailAddress("elberbildik4568521@gmail.com"),
                     Subject = konu,
                     Body = mesaj,
                     IsBodyHtml = true,
@@ -29,33 +28,20 @@ namespace Cihaz_Takip_Uygulaması
 
                 mailMessage.To.Add(toMailAdres); // Alıcı e-posta adresi
 
-
-                // SMTP debug logging
-                smtpClient.SendCompleted += (sender, e) =>
-                {
-                    if (e.Error != null)
-                    {
-                        Console.WriteLine($"Mail gönderimi sırasında hata: {e.Error.Message}");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Mail başarıyla gönderildi.");
-                    }
-                };
-
-                // Mail gönderme
+                // Mail gönderme işlemi
                 try
                 {
                     await smtpClient.SendMailAsync(mailMessage);
+                    Console.WriteLine("Mail başarıyla gönderildi.");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"SMTP Mail gönderim hatası: {ex.Message}");
+                    Console.WriteLine($"Mail gönderim hatası: {ex.Message}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Mail gönderimi sırasında hata: {ex.Message}");
+                Console.WriteLine($"Mail gönderimi sırasında bir hata oluştu: {ex.Message}");
             }
         }
     }

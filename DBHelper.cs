@@ -64,18 +64,24 @@ namespace Cihaz_Takip_Uygulaması
                 using (SqlConnection conn = new SqlConnection(ConnectionString.Get))
                 using (SqlCommand cmd = new SqlCommand(query, conn))
                 {
-                    cmd.Parameters.AddWithValue("@RecNo", recNo);
+                    // Parametreyi doğru türde ekliyoruz
+                    cmd.Parameters.Add(new SqlParameter("@RecNo", SqlDbType.Int) { Value = recNo });
+
                     conn.Open();
 
                     object result = cmd.ExecuteScalar();
-                    return result != DBNull.Value ? Convert.ToInt32(result) : 0;
+
+                    // Sonuç null veya DBNull ise 0 döndürüyoruz
+                    return result != DBNull.Value && result != null ? Convert.ToInt32(result) : 0;
                 }
             }
             catch (Exception ex)
             {
-                throw new Exception("Mail bekleme süresi alınırken hata oluştu: " + ex.Message);
+                // Hata mesajını daha açıklayıcı yapabiliriz
+                throw new Exception("Mail bekleme süresi alınırken hata oluştu. Sorgu: " , ex);
             }
         }
+        
 
         // CihazGrup tablosundan mail adresini alır
         public static string GetMailAdres(int grupRecNo)
