@@ -60,7 +60,6 @@
     <Compile Include="HücreRenkleme.cs" />
     <Compile Include="LogIslemleri.cs" />
     <Compile Include="MailHelper.cs" />
-    <Compile Include="PingIslemleri.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="VeriErisim.cs" />

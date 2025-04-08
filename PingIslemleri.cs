@@ -14,7 +14,6 @@ namespace Cihaz_Takip_Uygulaması
 
             DataGridViewRow row = grid.Rows[currentRowIndex];
 
-            // ✅ Anlık işlem yapılan satırı geçici renkle vurgula
             foreach (DataGridViewCell cell in row.Cells)
             {
                 cell.Style.BackColor = System.Drawing.Color.Orange; // veya istediğin renk
