@@ -48,7 +48,7 @@ namespace Cihaz_Takip_Uygulaması
                             return;
 
                         int grupRecNo = Convert.ToInt32(row.Cells["RecNo"].Value);
-                        int CihazinGrupNumarasi= Convert.ToInt32(row.Cells["GrupRecNo"].Value);
+                        int CihazinGrupNumarasi = Convert.ToInt32(row.Cells["GrupRecNo"].Value);
                         string ip = row.Cells["IPNo"].Value?.ToString();
                         string aciklama = row.Cells["Aciklama"].Value?.ToString();
 
@@ -72,12 +72,11 @@ namespace Cihaz_Takip_Uygulaması
                             }));
                             DBHelper.GuncelleDurum(grupRecNo, "UP");
                         }
-                        else
+                        else// Ping başarısızsa,mail gönderim işlemleri ve zaman hesaplamaları yapılacak 
                         {
-                            // Ping başarısızsa
                             Invoke(new Action(() =>
                             {
-                                row.Cells["Durum"].Value = "Down oldu, mail atılacak";
+                                //row.Cells["Durum"].Value = "Down oldu, mail atılacak";
                                 row.DefaultCellStyle.BackColor = Color.Red; // Kırmızı renk
                                 AppendColoredText($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu, mail atılacak.", Color.Red);
                             }));
@@ -86,25 +85,35 @@ namespace Cihaz_Takip_Uygulaması
                             // Cihaz "Down" olduğunda log kaydı ekle
                             DBHelper.CihazDownKaydi(grupRecNo);
 
-                            // E-posta gönderme işlemi ekleniyor
-                            string mailAdres = DBHelper.GetMailAdres(CihazinGrupNumarasi);  // Mail adresini DB'den al
-                            if (!string.IsNullOrEmpty(mailAdres))
+                           
+                            int beklemeSuresi = DBHelper.GetMailBeklemeSuresi(CihazinGrupNumarasi); // Mail bekleme süresini al
+                            DateTime downTime = DBHelper.GetSonPingZamani(grupRecNo); // cihazın down olduğu zaman
+
+                            if (downTime != DateTime.MinValue)
                             {
-                                // Mail gönderme
-                                await MailHelper.GonderAsync(mailAdres,
-                                                              "Cihaz Durum Bildirimi",
-                                                              $"{aciklama} cihazı {ip} Down durumunda, lütfen kontrol edin.");
-                            }
-                            else
-                            {
-                                // Mail adresi bulunamazsa hata mesajı ekle
-                                Invoke(new Action(() =>
+                                double gecenDakika = (DateTime.Now - downTime).TotalMinutes;
+
+                                if (gecenDakika >= beklemeSuresi && durum != "Down mail atıldı")
                                 {
-                                    AppendColoredText($"[{DateTime.Now:HH:mm:ss}] Mail adresi bulunamadı ({ip}).", Color.Red);
-                                }));
+                                    string mailAdres = DBHelper.GetMailAdres(CihazinGrupNumarasi);
+                                    string konu = $"[CIHAZ DOWN] {aciklama}";
+                                    string icerik = $"{aciklama} cihazı {downTime} tarihinde erişilemez oldu.\n{gecenDakika:F1} dakikadır bağlantı sağlanamıyor.";
+
+                                    await MailHelper.GonderAsync(mailAdres, konu, icerik);
+
+                                    DBHelper.GuncelleDurum(grupRecNo, "Down mail atıldı");
+
+                                    Invoke(new Action(() =>
+                                    {
+                                        row.Cells["Durum"].Value = "Down mail atıldı";
+                                        AppendColoredText($"[{DateTime.Now:HH:mm:ss}] {ip} için bekleme süresi aşıldı. Mail gönderildi.", Color.Orange);
+                                    }));
+                                }
                             }
                         }
                     }
+
+
                     catch (Exception ex)
                     {
                         Invoke(new Action(() =>
@@ -304,6 +313,33 @@ namespace Cihaz_Takip_Uygulaması
 
         private void pictureBox2_Click(object sender, EventArgs e) // arama yapma butonu
         {
+            
+        }
+
+        // RichTextBox'a renkli metin ekleme yardımcı metodu
+        private void AppendColoredText(string text, Color color)
+        {
+            MesajlarRchTxt.SelectionStart = MesajlarRchTxt.TextLength;
+            MesajlarRchTxt.SelectionLength = 0;
+            MesajlarRchTxt.SelectionColor = color;
+            MesajlarRchTxt.AppendText(text + Environment.NewLine);
+            MesajlarRchTxt.SelectionColor = MesajlarRchTxt.ForeColor;
+
+            // Otomatik kaydırma
+            MesajlarRchTxt.ScrollToCaret();
+        }
+
+        private void groupBox1_Enter(object sender, EventArgs e)
+        {
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            AppendColoredText("Uygulama başlatıldı.", Color.Blue);
+        }
+
+        private void pictureBox2_Click_1(object sender, EventArgs e)
+        {
             string ipNo = araTxtBox.Text; // TextBox'a girilen IP numarasını al
 
             // Eğer kullanıcı boş bir değer girerse, filtreleme yapılmaz
@@ -346,33 +382,6 @@ namespace Cihaz_Takip_Uygulaması
                 AppendColoredText($"Filtreleme işlemi sırasında hata oluştu: {ex.Message}", Color.Red);
                 MessageBox.Show("Filtreleme işlemi sırasında hata oluştu: " + ex.Message);
             }
-        }
-
-        // RichTextBox'a renkli metin ekleme yardımcı metodu
-        private void AppendColoredText(string text, Color color)
-        {
-            MesajlarRchTxt.SelectionStart = MesajlarRchTxt.TextLength;
-            MesajlarRchTxt.SelectionLength = 0;
-            MesajlarRchTxt.SelectionColor = color;
-            MesajlarRchTxt.AppendText(text + Environment.NewLine);
-            MesajlarRchTxt.SelectionColor = MesajlarRchTxt.ForeColor;
-
-            // Otomatik kaydırma
-            MesajlarRchTxt.ScrollToCaret();
-        }
-
-        private void groupBox1_Enter(object sender, EventArgs e)
-        {
-        }
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            AppendColoredText("Uygulama başlatıldı.", Color.Blue);
-        }
-
-        private void pictureBox2_Click_1(object sender, EventArgs e)
-        {
-
         }
 
     }

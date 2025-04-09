@@ -83,7 +83,7 @@ namespace Cihaz_Takip_Uygulaması
         }
 
 
-        // CihazGrup tablosundan mail adresini alır
+        // CihazGrup tablosundan mail adresini aldık 
         public static string GetMailAdres(int grupRecNo)
         {
             try
