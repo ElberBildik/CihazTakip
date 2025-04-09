@@ -51,7 +51,6 @@
   <ItemGroup>
     <Compile Include="ConnectionString.cs" />
     <Compile Include="DBHelper.cs" />
-    <Compile Include="DownTakip.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
