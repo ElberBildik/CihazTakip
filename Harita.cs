@@ -14,7 +14,7 @@ namespace Cihaz_Takip_Uygulaması
     {
         // Cihazları saklamak için liste
         private List<CihazBilgi> cihazlar = new List<CihazBilgi>();
-        private int pointRadius = 5; // Nokta büyüklüğü
+        private int pointRadius = 10; // Nokta büyüklüğü
 
         // Connection string
         private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
@@ -126,6 +126,9 @@ namespace Cihaz_Takip_Uygulaması
                                 case "Switch":
                                     cihaz.Shape = Shape.Diamond; // Kamera için dikdörtgen
                                     break;
+                                case "Yazıcı":
+                                    cihaz.Shape = Shape.Circle; // Yazıcı için dikdörtgen
+                                    break;
                                 default:
                                     cihaz.Shape = Shape.Circle;    // Diğer gruplar için daire
                                     break;
@@ -149,14 +152,45 @@ namespace Cihaz_Takip_Uygulaması
         {
             Graphics g = e.Graphics;
 
-            // Tüm cihazları çiz
+            // 1. Switch bağlantılarını çiz (yukarıdaki kod)
+            foreach (var cihaz in cihazlar)
+            {
+                if (cihaz.SwitchRecNo != 0 && cihaz.GrupKod != "Switch")
+                {
+                    var switchCihaz = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && s.GrupKod == "Switch");
+
+                    if (switchCihaz != null)
+                    {
+                        Color renk = Color.Gray;
+
+                        switch (cihaz.GrupKod)
+                        {
+                            case "Kamera":
+                                renk = Color.Brown;
+                                break;
+                            case "Yazıcı":
+                                renk = Color.Green;
+                                break;
+                            case "KGS":
+                                renk = Color.Red;
+                                break;
+                        }
+
+                        using (Pen kalem = new Pen(renk, 2))
+                        {
+                            g.DrawLine(kalem, switchCihaz.X, switchCihaz.Y, cihaz.X, cihaz.Y);
+                        }
+                    }
+                }
+            }
+
+            // 2. Cihazları çiz (senin mevcut şekil çizme kodun)
             foreach (var cihaz in cihazlar)
             {
                 using (Brush brush = new SolidBrush(cihaz.PointColor))
                 {
                     int diameter = pointRadius * 2;
 
-                    // Cihazın türüne göre şekil çiz
                     switch (cihaz.Shape)
                     {
                         case Shape.Triangle:
@@ -189,6 +223,7 @@ namespace Cihaz_Takip_Uygulaması
                 }
             }
         }
+
 
         private void Harita_MouseClick(object sender, MouseEventArgs e)
         {
