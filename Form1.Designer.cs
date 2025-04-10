@@ -47,6 +47,7 @@ namespace Cihaz_Takip_Uygulaması
             this.downCihazlar = new System.Windows.Forms.DataGridView();
             this.groupBox6 = new System.Windows.Forms.GroupBox();
             this.rchTextBildirimler = new System.Windows.Forms.RichTextBox();
+            this.button1 = new System.Windows.Forms.Button();
             this.panel2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.Cihazlar)).BeginInit();
             this.groupBox1.SuspendLayout();
@@ -146,6 +147,7 @@ namespace Cihaz_Takip_Uygulaması
             // 
             // groupBox2
             // 
+            this.groupBox2.Controls.Add(this.button1);
             this.groupBox2.Controls.Add(this.PingIptalBtn);
             this.groupBox2.Controls.Add(this.PingAtBtn);
             this.groupBox2.Font = new System.Drawing.Font("Microsoft Sans Serif", 14.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
@@ -243,6 +245,18 @@ namespace Cihaz_Takip_Uygulaması
             this.rchTextBildirimler.TabIndex = 0;
             this.rchTextBildirimler.Text = "";
             // 
+            // button1
+            // 
+            this.button1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(128)))));
+            this.button1.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.button1.Location = new System.Drawing.Point(6, 98);
+            this.button1.Name = "button1";
+            this.button1.Size = new System.Drawing.Size(123, 54);
+            this.button1.TabIndex = 4;
+            this.button1.Text = "Haritayı Görüntüle";
+            this.button1.UseVisualStyleBackColor = false;
+            this.button1.Click += new System.EventHandler(this.button1_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -293,6 +307,7 @@ namespace Cihaz_Takip_Uygulaması
         private System.Windows.Forms.DataGridView downCihazlar;
         private System.Windows.Forms.GroupBox groupBox6;
         private System.Windows.Forms.RichTextBox rchTextBildirimler;
+        private System.Windows.Forms.Button button1;
     }
 }
 

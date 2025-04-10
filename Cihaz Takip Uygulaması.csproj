@@ -57,6 +57,12 @@
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
+    <Compile Include="Harita.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Harita.Designer.cs">
+      <DependentUpon>Harita.cs</DependentUpon>
+    </Compile>
     <Compile Include="HücreRenkleme.cs" />
     <Compile Include="LogIslemleri.cs" />
     <Compile Include="MailHelper.cs" />
@@ -65,6 +71,9 @@
     <Compile Include="VeriErisim.cs" />
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Harita.resx">
+      <DependentUpon>Harita.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>

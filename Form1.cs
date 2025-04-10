@@ -622,5 +622,10 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
+        private void button1_Click(object sender, EventArgs e)
+        {
+            Form frm = new Harita();
+            frm.Show();
+        }
     }
 }
