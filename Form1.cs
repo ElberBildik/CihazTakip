@@ -64,6 +64,7 @@ namespace Cihaz_Takip_Uygulaması
 
         private async void PingTimer_Tick(object sender, EventArgs e)//down ve up mesajlarını burada bastırıyorum mesajlar kısmında değişilikiği burada yapabilirim
         {
+            MesajlarRchTxt.Clear();
             var tasks = new List<Task>();
 
             // Tüm satırlar için paralel kontrol yap
@@ -225,7 +226,7 @@ namespace Cihaz_Takip_Uygulaması
             downCihazTimers.Add(recNo, cihazTimer);
         }
 
-        private async void SendMailAndUpdateStatus(int recNo, int grupRecNo, string ip, string aciklama, DateTime downZamani, double gecenDakika) // MailHelper Sınıfına bağlı
+        private async void SendMailAndUpdateStatus(int recNo, int grupRecNo, string ip, string aciklama, DateTime downZamani, double gecenDakika)
         {
             try
             {
@@ -233,10 +234,11 @@ namespace Cihaz_Takip_Uygulaması
                 string konu = $"[CIHAZ DOWN] {aciklama}";
                 string icerik = $"{aciklama} cihazı {downZamani} tarihinde erişilemez oldu.\n{gecenDakika:F1} dakikadır bağlantı sağlanamıyor.\nIP Adresi: {ip}";
 
+                // Mail gönderimi
                 await MailHelper.GonderAsync(mailAdres, konu, icerik);
 
                 // Veritabanında durum güncelleme
-                DBHelper.GuncelleDurum(recNo, "Down oldu, mail atıldı");
+                DBHelper.GuncelleDurum(grupRecNo, "Down durumda, mail gönderildi");
 
                 // DataGridView'de durum güncelleme
                 foreach (DataRow row in downCihazlarTable.Rows)
@@ -258,10 +260,15 @@ namespace Cihaz_Takip_Uygulaması
                     }
                 }
 
+                // rchTextBildirimler kontrolüne bildirim mesajı ekleme
+                AppendToBildirimler($"[{DateTime.Now:HH:mm:ss}] {ip} için mail gönderildi. Konu: {konu}, Adres: {mailAdres}");
+
+                // Loglama ve kullanıcıya bilgi verme
                 AppendColoredText($"[{DateTime.Now:HH:mm:ss}] {ip} için bekleme süresi aşıldı. Mail gönderildi ve durum güncellendi. IP Adresi: {ip}", Color.Orange);
             }
             catch (Exception ex)
             {
+                // Hata durumunda loglama ve renkli mesaj
                 AppendColoredText($"[{DateTime.Now:HH:mm:ss}] Mail gönderirken hata: {ex.Message}. IP Adresi: {ip}", Color.Red);
             }
         }
@@ -409,7 +416,7 @@ namespace Cihaz_Takip_Uygulaması
                             Invoke(new Action(() =>
                             {
                                 row.Cells["Durum"].Value = "Down oldu, mail atılacak";
-                                row.DefaultCellStyle.BackColor = Color.Red; // Kırmızı renk
+                                row.DefaultCellStyle.BackColor = Color.Red;
                                 AppendColoredText($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu, mail atılacak.", Color.Red);
 
                                 // Down cihazlar listesine ekle
@@ -538,7 +545,18 @@ namespace Cihaz_Takip_Uygulaması
             // Otomatik kaydırma
             MesajlarRchTxt.ScrollToCaret();
         }
-        
+        private void AppendToBildirimler(string text)
+        {
+            rchTextBildirimler.SelectionStart = MesajlarRchTxt.TextLength;
+            rchTextBildirimler.SelectionLength = 0;
+            rchTextBildirimler.SelectionColor = Color.Orange; // Bildirimler için özel renk
+            rchTextBildirimler.AppendText(text + Environment.NewLine);
+            rchTextBildirimler.SelectionColor = MesajlarRchTxt.ForeColor;
+
+            // Otomatik kaydırma
+            rchTextBildirimler.ScrollToCaret();
+        }
+
 
         private void Form1_Load(object sender, EventArgs e)
         {

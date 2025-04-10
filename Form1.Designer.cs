@@ -45,6 +45,8 @@ namespace Cihaz_Takip_Uygulaması
             this.MesajlarRchTxt = new System.Windows.Forms.RichTextBox();
             this.groupBox5 = new System.Windows.Forms.GroupBox();
             this.downCihazlar = new System.Windows.Forms.DataGridView();
+            this.groupBox6 = new System.Windows.Forms.GroupBox();
+            this.rchTextBildirimler = new System.Windows.Forms.RichTextBox();
             this.panel2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.Cihazlar)).BeginInit();
             this.groupBox1.SuspendLayout();
@@ -55,6 +57,7 @@ namespace Cihaz_Takip_Uygulaması
             this.groupBox4.SuspendLayout();
             this.groupBox5.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.downCihazlar)).BeginInit();
+            this.groupBox6.SuspendLayout();
             this.SuspendLayout();
             // 
             // panel2
@@ -204,7 +207,7 @@ namespace Cihaz_Takip_Uygulaması
             // groupBox5
             // 
             this.groupBox5.Controls.Add(this.downCihazlar);
-            this.groupBox5.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.groupBox5.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.groupBox5.Location = new System.Drawing.Point(1749, 12);
             this.groupBox5.Name = "groupBox5";
             this.groupBox5.Size = new System.Drawing.Size(803, 902);
@@ -215,16 +218,37 @@ namespace Cihaz_Takip_Uygulaması
             // downCihazlar
             // 
             this.downCihazlar.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.downCihazlar.Location = new System.Drawing.Point(6, 34);
+            this.downCihazlar.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.downCihazlar.Location = new System.Drawing.Point(3, 22);
             this.downCihazlar.Name = "downCihazlar";
-            this.downCihazlar.Size = new System.Drawing.Size(791, 868);
+            this.downCihazlar.Size = new System.Drawing.Size(797, 877);
             this.downCihazlar.TabIndex = 0;
+            // 
+            // groupBox6
+            // 
+            this.groupBox6.Controls.Add(this.rchTextBildirimler);
+            this.groupBox6.Location = new System.Drawing.Point(1755, 921);
+            this.groupBox6.Name = "groupBox6";
+            this.groupBox6.Size = new System.Drawing.Size(779, 428);
+            this.groupBox6.TabIndex = 5;
+            this.groupBox6.TabStop = false;
+            this.groupBox6.Text = "BİLDİRİMLER";
+            // 
+            // rchTextBildirimler
+            // 
+            this.rchTextBildirimler.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.rchTextBildirimler.Location = new System.Drawing.Point(6, 19);
+            this.rchTextBildirimler.Name = "rchTextBildirimler";
+            this.rchTextBildirimler.Size = new System.Drawing.Size(767, 403);
+            this.rchTextBildirimler.TabIndex = 0;
+            this.rchTextBildirimler.Text = "";
             // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(2546, 1361);
+            this.Controls.Add(this.groupBox6);
             this.Controls.Add(this.groupBox5);
             this.Controls.Add(this.groupBox4);
             this.Controls.Add(this.groupBox1);
@@ -245,6 +269,7 @@ namespace Cihaz_Takip_Uygulaması
             this.groupBox4.ResumeLayout(false);
             this.groupBox5.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.downCihazlar)).EndInit();
+            this.groupBox6.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -266,6 +291,8 @@ namespace Cihaz_Takip_Uygulaması
         private System.Windows.Forms.PictureBox pictureBox2;
         private System.Windows.Forms.GroupBox groupBox5;
         private System.Windows.Forms.DataGridView downCihazlar;
+        private System.Windows.Forms.GroupBox groupBox6;
+        private System.Windows.Forms.RichTextBox rchTextBildirimler;
     }
 }
 

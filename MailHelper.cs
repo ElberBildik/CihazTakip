@@ -25,7 +25,7 @@ namespace Cihaz_Takip_Uygulaması
                 await smtp.SendMailAsync(mail);
             }
             catch (Exception ex)
-            {
+            {//mail gönderildi gönderilemedi kodunu da eklemek istiyorum buraya
                 // Hata loglama yapılabilir
                 System.Windows.Forms.MessageBox.Show("Mail gönderme hatası: " + ex.Message);
             }
