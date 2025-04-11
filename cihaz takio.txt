@@ -1,0 +1,11 @@
+durum kolonundan gidilecek kayıtların durumunu yazacak
+mail gönderilecek bekleme süresi
+downdan upa geçerken downmailiatildi sahası 1 yapılır.
+
+
+MAİL DURUMLARI:
+1-)Down olunca maili atılacak.
+2-)Down maili atıldı.
+3-)Up maili atılacak
+4-)Up maili atıldı.
+5-)Henüz down,  oldu mail atılmadı.

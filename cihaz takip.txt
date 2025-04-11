@@ -1,0 +1,3 @@
+durum kolonundan gidilecek kayıtların durumunu yazacak
+mail gönderilecek bekleme süresi
+downdan upa geçerken downmailiatildi sahası 1 yapılır.
