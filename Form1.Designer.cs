@@ -39,6 +39,7 @@ namespace Cihaz_Takip_Uygulaması
             this.label1 = new System.Windows.Forms.Label();
             this.araTxtBox = new System.Windows.Forms.TextBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
+            this.button1 = new System.Windows.Forms.Button();
             this.PingIptalBtn = new System.Windows.Forms.Button();
             this.PingAtBtn = new System.Windows.Forms.Button();
             this.groupBox4 = new System.Windows.Forms.GroupBox();
@@ -47,7 +48,6 @@ namespace Cihaz_Takip_Uygulaması
             this.downCihazlar = new System.Windows.Forms.DataGridView();
             this.groupBox6 = new System.Windows.Forms.GroupBox();
             this.rchTextBildirimler = new System.Windows.Forms.RichTextBox();
-            this.button1 = new System.Windows.Forms.Button();
             this.panel2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.Cihazlar)).BeginInit();
             this.groupBox1.SuspendLayout();
@@ -158,6 +158,18 @@ namespace Cihaz_Takip_Uygulaması
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "Ping İşlemleri";
             // 
+            // button1
+            // 
+            this.button1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(128)))));
+            this.button1.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.button1.Location = new System.Drawing.Point(6, 98);
+            this.button1.Name = "button1";
+            this.button1.Size = new System.Drawing.Size(123, 54);
+            this.button1.TabIndex = 4;
+            this.button1.Text = "Haritayı Görüntüle";
+            this.button1.UseVisualStyleBackColor = false;
+            this.button1.Click += new System.EventHandler(this.button1_Click);
+            // 
             // PingIptalBtn
             // 
             this.PingIptalBtn.BackColor = System.Drawing.Color.Red;
@@ -229,6 +241,7 @@ namespace Cihaz_Takip_Uygulaması
             // groupBox6
             // 
             this.groupBox6.Controls.Add(this.rchTextBildirimler);
+            this.groupBox6.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.groupBox6.Location = new System.Drawing.Point(1755, 921);
             this.groupBox6.Name = "groupBox6";
             this.groupBox6.Size = new System.Drawing.Size(779, 428);
@@ -244,18 +257,6 @@ namespace Cihaz_Takip_Uygulaması
             this.rchTextBildirimler.Size = new System.Drawing.Size(767, 403);
             this.rchTextBildirimler.TabIndex = 0;
             this.rchTextBildirimler.Text = "";
-            // 
-            // button1
-            // 
-            this.button1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(128)))));
-            this.button1.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.button1.Location = new System.Drawing.Point(6, 98);
-            this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(123, 54);
-            this.button1.TabIndex = 4;
-            this.button1.Text = "Haritayı Görüntüle";
-            this.button1.UseVisualStyleBackColor = false;
-            this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
             // Form1
             // 

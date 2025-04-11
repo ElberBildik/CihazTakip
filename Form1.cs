@@ -214,7 +214,7 @@ namespace Cihaz_Takip_Uygulaması
             try
             {
                 string mailAdres = DBHelper.GetMailAdres(grupRecNo);
-                string konu = $"[CIHAZA ERISIM SAĞLANAMIYOR..!] {aciklama}";
+                string konu = $"[CIHAZA ERI] {aciklama}";
                 string icerik = $"{aciklama} cihazı {downZamani} tarihinde erişilemez oldu.\n" +
                                 $"{gecenDakika:F1} dakikadır bağlantı sağlanamıyor.\nIP Adresi: {ip}";
 

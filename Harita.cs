@@ -11,7 +11,7 @@ namespace Cihaz_Takip_Uygulaması
     public partial class Harita : Form
     {
         private List<CihazBilgi> cihazlar = new List<CihazBilgi>();
-        private int pointRadius = 6;
+        private int pointRadius = 8;
         private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
         private Timer durumGuncellemeTimer;
 
@@ -103,7 +103,7 @@ namespace Cihaz_Takip_Uygulaması
 
                             switch (cihaz.GrupKod)
                             {
-                                case "Enerji Pano":
+                                case "Enerji panosu":
                                     cihaz.Shape = Shape.Rectangle;
                                     break;
                                 case "Data Switch":
@@ -153,6 +153,7 @@ namespace Cihaz_Takip_Uygulaması
         }
 
 
+
         private void Harita_Paint(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -178,9 +179,9 @@ namespace Cihaz_Takip_Uygulaması
             // 2. Switch bağlantılarını çiz
             foreach (var cihaz in cihazlar)
             {
-                if (cihaz.SwitchRecNo != 0 && cihaz.GrupKod != "Switch")
+                if (cihaz.SwitchRecNo != 0 && cihaz.GrupKod != "Enerji panosu") //Enerji panosuna bağlı cihazları atla
                 {
-                    var switchCihaz = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && s.GrupKod == "Switch");
+                    var switchCihaz = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
 
                     if (switchCihaz != null)
                     {
@@ -189,17 +190,20 @@ namespace Cihaz_Takip_Uygulaması
                         switch (cihaz.GrupKod)
                         {
                             case "Kamera":
-                                renk = Color.Brown;
+                                renk = Color.Chartreuse; // Kameralar için yeşil
                                 break;
                             case "Yazıcı":
-                                renk = Color.Green;
+                                renk = Color.DarkOrange;
                                 break;
                             case "KGS":
-                                renk = Color.Red;
+                                renk = Color.Purple;
+                                break;
+                            default:
+                                renk = Color.BlueViolet;
                                 break;
                         }
 
-                        using (Pen kalem = new Pen(renk, 2))
+                        using (Pen kalem = new Pen(renk, 3))
                         {
                             g.DrawLine(kalem, switchCihaz.X, switchCihaz.Y, cihaz.X, cihaz.Y);
                         }
@@ -207,7 +211,25 @@ namespace Cihaz_Takip_Uygulaması
                 }
             }
 
-            // 3. Cihazları çiz (şekiller)
+            // 3. Birbirine bağlı switch'leri çiz
+            foreach (var cihaz in cihazlar)
+            {
+                if (cihaz.GrupKod == "Data Switch" || cihaz.GrupKod == "Kamera Switch")
+                {
+                    // Switch'in bağlı olduğu switch'i bul
+                    var bagliSwitch = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
+
+                    if (bagliSwitch != null)
+                    {
+                        using (Pen kahverengiKalem = new Pen(Color.Brown, 2))
+                        {
+                            g.DrawLine(kahverengiKalem, cihaz.X, cihaz.Y, bagliSwitch.X, bagliSwitch.Y);
+                        }
+                    }
+                }
+            }
+
+            // 4. Cihazları çiz (şekiller)
             foreach (var cihaz in cihazlar)
             {
                 using (Brush brush = new SolidBrush(cihaz.PointColor))
@@ -246,6 +268,8 @@ namespace Cihaz_Takip_Uygulaması
                 }
             }
         }
+
+
 
 
 
