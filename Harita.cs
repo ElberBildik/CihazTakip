@@ -1,25 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
+using System.Data.SqlClient;
 using System.Drawing;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Data.SqlClient;
 
 namespace Cihaz_Takip_Uygulaması
 {
     public partial class Harita : Form
     {
-        // Cihazları saklamak için liste
         private List<CihazBilgi> cihazlar = new List<CihazBilgi>();
-        private int pointRadius = 10; // Nokta büyüklüğü
-
-        // Connection string
+        private int pointRadius = 6;
         private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
-
-        // Durum güncelleme için Timer
         private Timer durumGuncellemeTimer;
 
         public Harita()
@@ -27,25 +20,22 @@ namespace Cihaz_Takip_Uygulaması
             InitializeComponent();
             this.DoubleBuffered = true;
 
-            // Panel üzerine paint ve mouseclick eventlerini bağla
             this.panel1.Paint += Harita_Paint;
             this.panel1.MouseClick += Harita_MouseClick;
 
             VeritabanindanCihazlariYukle();
 
             durumGuncellemeTimer = new Timer();
-            durumGuncellemeTimer.Interval = 1000; // 1 saniye
+            durumGuncellemeTimer.Interval = 1000;
             durumGuncellemeTimer.Tick += DurumGuncellemeTimer_Tick;
             durumGuncellemeTimer.Start();
         }
 
-        // Timer Tick event
         private void DurumGuncellemeTimer_Tick(object sender, EventArgs e)
         {
-            VeritabanindanCihazlariYukle(); // Her saniyede güncelle
+            VeritabanindanCihazlariYukle();
         }
 
-        // Cihaz bilgilerini temsil eden iç sınıf
         private class CihazBilgi
         {
             public int RecNo { get; set; }
@@ -55,14 +45,14 @@ namespace Cihaz_Takip_Uygulaması
             public string Aciklama { get; set; }
             public string Durum { get; set; }
             public string MarkaModel { get; set; }
-            public Color PointColor { get; set; } // Cihazın durumuna göre renk
-            public int SwitchRecNo { get; set; }  // Switch ID
-            public Shape Shape { get; set; }      // Cihazın şekli
-            public string GrupKod { get; set; }   // Grup kodu
+            public Color PointColor { get; set; }
+            public int SwitchRecNo { get; set; }
+            public Shape Shape { get; set; }
+            public string GrupKod { get; set; }
+            public string EnerjiPanoNo { get; set; } // Yeni özellik
         }
 
 
-        // Cihazların şekillerini tanımlamak için enum
         private enum Shape
         {
             Circle,
@@ -71,17 +61,18 @@ namespace Cihaz_Takip_Uygulaması
             Diamond
         }
 
-        private void VeritabanindanCihazlariYukle()//cihazın özelliklerini alıp hangi simgeyle uyumlu oldugunu görüntüledik 
+        private void VeritabanindanCihazlariYukle()
         {
             try
             {
-                cihazlar.Clear(); // Mevcut cihazları temizle
+                var yeniCihazlar = new List<CihazBilgi>();
 
-                using (SqlConnection connection = new SqlConnection(connectionString))//grup kodu burada aldım
+                using (SqlConnection connection = new SqlConnection(connectionString))
                 {
+                    // EnerjiPanoNo'yu almak için SQL sorgusunu güncelleyin
                     string query = @"
                 SELECT c.RecNo, c.X, c.Y, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel, 
-                       c.SwitchRecNo, cg.Kod AS GrupKod
+                       c.SwitchRecNo, cg.Kod AS GrupKod, c.EnerjiPanoNo
                 FROM Cihaz c
                 INNER JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
                 WHERE c.X IS NOT NULL AND c.Y IS NOT NULL";
@@ -103,44 +94,56 @@ namespace Cihaz_Takip_Uygulaması
                                 Durum = reader.IsDBNull(5) ? "N/A" : reader.GetString(5),
                                 MarkaModel = reader.IsDBNull(6) ? "N/A" : reader.GetString(6),
                                 SwitchRecNo = reader.GetInt32(7),
-                                GrupKod = reader.GetString(8) // Grup kodunu al
+                                GrupKod = reader.GetString(8),
+                                // EnerjiPanoNo'yu okuyun
+                                EnerjiPanoNo = reader.IsDBNull(9) ? null : reader.GetString(9)
                             };
 
-                            // Duruma göre renk belirleme
-                            if (cihaz.Durum.Equals("UP", StringComparison.OrdinalIgnoreCase))
-                                cihaz.PointColor = Color.Green;
-                            else if (cihaz.Durum.Contains("Down"))
-                                cihaz.PointColor = Color.Red;
-                            else
-                                cihaz.PointColor = Color.Orange;
+                            cihaz.PointColor = cihaz.Durum.Equals("UP", StringComparison.OrdinalIgnoreCase) ? Color.Green : Color.Red;
 
-                            // Grup koduna göre şekil belirleme
                             switch (cihaz.GrupKod)
                             {
-                                case "KGS":
-                                    cihaz.Shape = Shape.Triangle;  // KGS için üçgen
+                                case "Enerji Pano":
+                                    cihaz.Shape = Shape.Rectangle;
+                                    break;
+                                case "Data Switch":
+                                case "Kamera Switch":
+                                    cihaz.Shape = Shape.Diamond;
                                     break;
                                 case "Kamera":
-                                    cihaz.Shape = Shape.Rectangle; // Kamera için dikdörtgen
-                                    break;
-                                case "Switch":
-                                    cihaz.Shape = Shape.Diamond; // Kamera için dikdörtgen
-                                    break;
-                                case "Yazıcı":
-                                    cihaz.Shape = Shape.Circle; // Yazıcı için dikdörtgen
+                                    cihaz.Shape = Shape.Triangle;
                                     break;
                                 default:
-                                    cihaz.Shape = Shape.Circle;    // Diğer gruplar için daire
+                                    cihaz.Shape = Shape.Circle;
                                     break;
-
                             }
 
-                            cihazlar.Add(cihaz);
+                            yeniCihazlar.Add(cihaz);
                         }
                     }
                 }
 
-                this.panel1.Invalidate(); // Haritayı yeniden çiz
+                // Güncellendi mi kontrol et
+                bool degisiklikVar = yeniCihazlar.Count != cihazlar.Count;
+                if (!degisiklikVar)
+                {
+                    for (int i = 0; i < yeniCihazlar.Count; i++)
+                    {
+                        var a = yeniCihazlar[i];
+                        var b = cihazlar[i];
+                        if (a.RecNo != b.RecNo || a.X != b.X || a.Y != b.Y || a.Durum != b.Durum || a.EnerjiPanoNo != b.EnerjiPanoNo)
+                        {
+                            degisiklikVar = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (degisiklikVar)
+                {
+                    cihazlar = yeniCihazlar;
+                    this.panel1.Invalidate();
+                }
             }
             catch (Exception ex)
             {
@@ -148,11 +151,31 @@ namespace Cihaz_Takip_Uygulaması
                     "Veritabanı Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
+
         private void Harita_Paint(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
 
-            // 1. Switch bağlantılarını çiz (yukarıdaki kod)
+            // 1. Enerji panosuna bağlı cihazları çiz
+            foreach (var cihaz in cihazlar)
+            {
+                if (!string.IsNullOrEmpty(cihaz.EnerjiPanoNo))
+                {
+                    // Bağlı olduğu enerji panosunu bul
+                    var enerjiPanosu = cihazlar.FirstOrDefault(p => p.Aciklama == cihaz.EnerjiPanoNo && p.GrupKod == "Enerji panosu");
+
+                    if (enerjiPanosu != null)
+                    {
+                        using (Pen redPen = new Pen(Color.Red, 2))
+                        {
+                            g.DrawLine(redPen, cihaz.X, cihaz.Y, enerjiPanosu.X, enerjiPanosu.Y);
+                        }
+                    }
+                }
+            }
+
+            // 2. Switch bağlantılarını çiz
             foreach (var cihaz in cihazlar)
             {
                 if (cihaz.SwitchRecNo != 0 && cihaz.GrupKod != "Switch")
@@ -184,7 +207,7 @@ namespace Cihaz_Takip_Uygulaması
                 }
             }
 
-            // 2. Cihazları çiz (senin mevcut şekil çizme kodun)
+            // 3. Cihazları çiz (şekiller)
             foreach (var cihaz in cihazlar)
             {
                 using (Brush brush = new SolidBrush(cihaz.PointColor))
@@ -225,12 +248,11 @@ namespace Cihaz_Takip_Uygulaması
         }
 
 
+
         private void Harita_MouseClick(object sender, MouseEventArgs e)
         {
-            // Tıklanan yerin koordinatını göster
             MessageBox.Show($"Tıklanan Nokta:\nX: {e.X}, Y: {e.Y}", "Lokasyon");
 
-            // Tıklanan yere en yakın cihazı bul
             CihazBilgi enYakinCihaz = null;
             double enKucukMesafe = double.MaxValue;
 
@@ -247,7 +269,6 @@ namespace Cihaz_Takip_Uygulaması
                 }
             }
 
-            // Eğer yakında bir cihaz varsa bilgilerini göster
             if (enYakinCihaz != null)
             {
                 GuncelCihazBilgisiGoster(enYakinCihaz.RecNo);
@@ -261,12 +282,12 @@ namespace Cihaz_Takip_Uygulaması
                 using (SqlConnection connection = new SqlConnection(connectionString))
                 {
                     string query = @"
-            SELECT c.RecNo, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel,
-            c.SwitchPortNo, c.EnerjiPanoNo, c.EnerjiPanoSigortaNo,
-            cg.Aciklama as GrupAdi
-            FROM Cihaz c
-            LEFT JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
-            WHERE c.RecNo = @RecNo";
+                        SELECT c.RecNo, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel,
+                               c.SwitchPortNo, c.EnerjiPanoNo, c.EnerjiPanoSigortaNo,
+                               cg.Aciklama as GrupAdi
+                        FROM Cihaz c
+                        LEFT JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
+                        WHERE c.RecNo = @RecNo";
 
                     SqlCommand command = new SqlCommand(query, connection);
                     command.Parameters.AddWithValue("@RecNo", cihazRecNo);
@@ -289,13 +310,11 @@ namespace Cihaz_Takip_Uygulaması
                             sb.AppendLine($"Enerji Pano: {reader["EnerjiPanoNo"] ?? "N/A"}");
                             sb.AppendLine($"Sigorta No: {reader["EnerjiPanoSigortaNo"] ?? "N/A"}");
 
-                            MessageBox.Show(sb.ToString(), "Cihaz Bilgisi",
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            MessageBox.Show(sb.ToString(), "Cihaz Bilgisi", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                         else
                         {
-                            MessageBox.Show("Cihaz bilgisi bulunamadı.", "Bilgi",
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            MessageBox.Show("Cihaz bilgisi bulunamadı.", "Bilgi", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                     }
                 }
@@ -305,12 +324,6 @@ namespace Cihaz_Takip_Uygulaması
                 MessageBox.Show("Cihaz bilgisi alınırken hata oluştu: " + ex.Message,
                     "Veritabanı Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        // Form üzerindeki yenile butonuna basıldığında manuel olarak da yenilenebilir
-        private void Harita_Refresh_Click(object sender, EventArgs e)
-        {
-            VeritabanindanCihazlariYukle();
         }
 
         private void Harita_Load(object sender, EventArgs e)
