@@ -247,7 +247,7 @@ namespace Cihaz_Takip_Uygulaması
             this.groupBox6.Size = new System.Drawing.Size(779, 428);
             this.groupBox6.TabIndex = 5;
             this.groupBox6.TabStop = false;
-            this.groupBox6.Text = "BİLDİRİMLER";
+            this.groupBox6.Text = "Bildirimler";
             // 
             // rchTextBildirimler
             // 

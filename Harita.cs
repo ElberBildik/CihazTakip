@@ -5,13 +5,15 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using System.Drawing.Drawing2D;
+
 
 namespace Cihaz_Takip_Uygulaması
 {
     public partial class Harita : Form
     {
         private List<CihazBilgi> cihazlar = new List<CihazBilgi>();
-        private int pointRadius = 8;
+        private int pointRadius = 8;//Nokaların büyüklüğü
         private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
         private Timer durumGuncellemeTimer;
 
@@ -58,8 +60,12 @@ namespace Cihaz_Takip_Uygulaması
             Circle,
             Rectangle,
             Triangle,
-            Diamond
+            Diamond,
+            Star,
+            Camera,
+            PLC
         }
+
 
         private void VeritabanindanCihazlariYukle()
         {
@@ -107,16 +113,22 @@ namespace Cihaz_Takip_Uygulaması
                                     cihaz.Shape = Shape.Rectangle;
                                     break;
                                 case "Data Switch":
+                                    cihaz.Shape = Shape.Star; // Yıldız
+                                    break;
                                 case "Kamera Switch":
-                                    cihaz.Shape = Shape.Diamond;
+                                    cihaz.Shape = Shape.Diamond; // Baklava dilimi
                                     break;
                                 case "Kamera":
                                     cihaz.Shape = Shape.Triangle;
+                                    break;
+                                case "PLC":
+                                    cihaz.Shape = Shape.PLC;
                                     break;
                                 default:
                                     cihaz.Shape = Shape.Circle;
                                     break;
                             }
+
 
                             yeniCihazlar.Add(cihaz);
                         }
@@ -190,16 +202,16 @@ namespace Cihaz_Takip_Uygulaması
                         switch (cihaz.GrupKod)
                         {
                             case "Kamera":
-                                renk = Color.Chartreuse; // Kameralar için yeşil
+                                renk = Color.Chartreuse; // Switch->Kamera
                                 break;
                             case "Yazıcı":
-                                renk = Color.DarkOrange;
+                                renk = Color.DarkOrange;//Switch->Yazıcı
                                 break;
                             case "KGS":
-                                renk = Color.Purple;
+                                renk = Color.Purple;//Switch->KGS
                                 break;
-                            default:
-                                renk = Color.BlueViolet;
+                            default:    
+                                renk = Color.BlueViolet;//Tüm Client cihazlar 
                                 break;
                         }
 
@@ -230,7 +242,7 @@ namespace Cihaz_Takip_Uygulaması
             }
 
             // 4. Cihazları çiz (şekiller)
-            foreach (var cihaz in cihazlar)
+            foreach (var cihaz in cihazlar)//ChatGPT'den aldım 
             {
                 using (Brush brush = new SolidBrush(cihaz.PointColor))
                 {
@@ -238,19 +250,97 @@ namespace Cihaz_Takip_Uygulaması
 
                     switch (cihaz.Shape)
                     {
-                        case Shape.Triangle:
+                        case Shape.Triangle://Kamera Üçgen
                             Point[] trianglePoints = {
-                        new Point(cihaz.X, cihaz.Y - pointRadius),
-                        new Point(cihaz.X - pointRadius, cihaz.Y + pointRadius),
-                        new Point(cihaz.X + pointRadius, cihaz.Y + pointRadius)
-                    };
+                            new Point(cihaz.X, cihaz.Y - pointRadius),
+                            new Point(cihaz.X - pointRadius, cihaz.Y + pointRadius),
+                            new Point(cihaz.X + pointRadius, cihaz.Y + pointRadius)
+                        };
                             g.FillPolygon(brush, trianglePoints);
                             break;
 
-                        case Shape.Rectangle:
-                            g.FillRectangle(brush, cihaz.X - pointRadius, cihaz.Y - pointRadius, diameter, diameter);
+
+
+                        case Shape.Star:
+                            Point[] starPoints = {
+        new Point(cihaz.X, cihaz.Y - pointRadius),
+        new Point(cihaz.X + (int)(pointRadius * 0.4), cihaz.Y - (int)(pointRadius * 0.4)),
+        new Point(cihaz.X + pointRadius, cihaz.Y - (int)(pointRadius * 0.4)),
+        new Point(cihaz.X + (int)(pointRadius * 0.6), cihaz.Y + (int)(pointRadius * 0.2)),
+        new Point(cihaz.X + (int)(pointRadius * 0.8), cihaz.Y + pointRadius),
+        new Point(cihaz.X, cihaz.Y + (int)(pointRadius * 0.6)),
+        new Point(cihaz.X - (int)(pointRadius * 0.8), cihaz.Y + pointRadius),
+        new Point(cihaz.X - (int)(pointRadius * 0.6), cihaz.Y + (int)(pointRadius * 0.2)),
+        new Point(cihaz.X - pointRadius, cihaz.Y - (int)(pointRadius * 0.4)),
+        new Point(cihaz.X - (int)(pointRadius * 0.4), cihaz.Y - (int)(pointRadius * 0.4)),
+    };
+                            g.FillPolygon(brush, starPoints);
                             break;
 
+
+
+
+
+                        case Shape.PLC://PLC ÇİZİMİ
+                            // Ana gövde (gri yatay kutu)
+                            using (Brush plcBrush = new SolidBrush(Color.Orange))
+                            {
+                                g.FillRectangle(plcBrush, cihaz.X - pointRadius - 4, cihaz.Y - pointRadius, pointRadius * 2 + 8, pointRadius * 2);
+                            }
+
+                            // Bağlantı portları (küçük açık gri dikdörtgenler)
+                            using (Brush portBrush = new SolidBrush(Color.DarkSlateGray))
+                            {
+                                for (int i = 0; i < 3; i++)
+                                {
+                                    g.FillRectangle(portBrush, cihaz.X - 6 + i * 6, cihaz.Y - 2, 3, 4);
+                                }
+                            }
+
+                            // PLC etiketi
+                            using (Font font = new Font("Arial", 6))
+                            {
+                                g.DrawString("PLC", font, Brushes.Black, cihaz.X - 8, cihaz.Y - 12);
+                            }
+                            break;
+
+
+                        case Shape.Rectangle://Enerji Panosu
+                            // Gövde (turuncu, yuvarlatılmış kenarlı dikdörtgen)
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                Rectangle rect = new Rectangle(cihaz.X - pointRadius, cihaz.Y - pointRadius, pointRadius * 2, pointRadius * 2 + 10);
+                                int cornerRadius = 6;
+
+                                path.AddArc(rect.X, rect.Y, cornerRadius, cornerRadius, 180, 90);
+                                path.AddArc(rect.Right - cornerRadius, rect.Y, cornerRadius, cornerRadius, 270, 90);
+                                path.AddArc(rect.Right - cornerRadius, rect.Bottom - cornerRadius, cornerRadius, cornerRadius, 0, 90);
+                                path.AddArc(rect.X, rect.Bottom - cornerRadius, cornerRadius, cornerRadius, 90, 90);
+                                path.CloseFigure();
+
+                                using (Brush brushBody = new SolidBrush(Color.Cyan))
+                                using (Pen borderPen = new Pen(Color.OrangeRed, 2))
+                                {
+                                    g.FillPath(brushBody, path);
+                                    g.DrawPath(borderPen, path);
+                                }
+                            }
+
+                            // Kapak çizgisi
+                            using (Pen kapakKalem = new Pen(Color.Black, 2))
+                            {
+                                g.DrawLine(kapakKalem, cihaz.X - pointRadius + 2, cihaz.Y, cihaz.X + pointRadius - 2, cihaz.Y);
+                            }
+
+                            // Sigorta noktaları (3 adet küçük siyah daire)
+                            using (Brush sigortaBrush = new SolidBrush(Color.Black))
+                            {
+                                for (int i = 0; i < 3; i++)
+                                {
+                                    g.FillEllipse(sigortaBrush, cihaz.X - 6 + i * 6, cihaz.Y + 4, 3, 3);
+                                }
+                            }
+                            break;
                         case Shape.Diamond:
                             Point[] diamondPoints = {
                         new Point(cihaz.X, cihaz.Y - pointRadius),
@@ -260,6 +350,8 @@ namespace Cihaz_Takip_Uygulaması
                     };
                             g.FillPolygon(brush, diamondPoints);
                             break;
+
+
 
                         case Shape.Circle:
                             g.FillEllipse(brush, cihaz.X - pointRadius, cihaz.Y - pointRadius, diameter, diameter);

@@ -39,7 +39,7 @@ namespace Cihaz_Takip_Uygulaması
             this.panel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.panel1.Location = new System.Drawing.Point(0, 0);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(1215, 1136);
+            this.panel1.Size = new System.Drawing.Size(2383, 1328);
             this.panel1.TabIndex = 0;
             // 
             // Harita
@@ -48,10 +48,11 @@ namespace Cihaz_Takip_Uygulaması
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackgroundImage = ((System.Drawing.Image)(resources.GetObject("$this.BackgroundImage")));
             this.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Stretch;
-            this.ClientSize = new System.Drawing.Size(1215, 1136);
+            this.ClientSize = new System.Drawing.Size(2383, 1328);
             this.Controls.Add(this.panel1);
             this.DoubleBuffered = true;
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
             this.Name = "Harita";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
