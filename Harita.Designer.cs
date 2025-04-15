@@ -31,6 +31,7 @@ namespace Cihaz_Takip_Uygulaması
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Harita));
             this.panel1 = new System.Windows.Forms.Panel();
+            this.CizgiKaldirChckBox = new System.Windows.Forms.CheckBox();
             this.SuspendLayout();
             // 
             // panel1
@@ -42,6 +43,18 @@ namespace Cihaz_Takip_Uygulaması
             this.panel1.Size = new System.Drawing.Size(2383, 1328);
             this.panel1.TabIndex = 0;
             // 
+            // CizgiKaldirChckBox
+            // 
+            this.CizgiKaldirChckBox.AutoSize = true;
+            this.CizgiKaldirChckBox.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.CizgiKaldirChckBox.Location = new System.Drawing.Point(12, 12);
+            this.CizgiKaldirChckBox.Name = "CizgiKaldirChckBox";
+            this.CizgiKaldirChckBox.Size = new System.Drawing.Size(141, 24);
+            this.CizgiKaldirChckBox.TabIndex = 1;
+            this.CizgiKaldirChckBox.Text = "Çizgileri Kaldır";
+            this.CizgiKaldirChckBox.UseVisualStyleBackColor = true;
+            this.CizgiKaldirChckBox.CheckedChanged += new System.EventHandler(this.CizgiKaldirChckBox_CheckedChanged);
+            // 
             // Harita
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -49,6 +62,7 @@ namespace Cihaz_Takip_Uygulaması
             this.BackgroundImage = ((System.Drawing.Image)(resources.GetObject("$this.BackgroundImage")));
             this.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Stretch;
             this.ClientSize = new System.Drawing.Size(2383, 1328);
+            this.Controls.Add(this.CizgiKaldirChckBox);
             this.Controls.Add(this.panel1);
             this.DoubleBuffered = true;
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
@@ -60,11 +74,13 @@ namespace Cihaz_Takip_Uygulaması
             this.Load += new System.EventHandler(this.Harita_Load);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.Harita_Paint);
             this.ResumeLayout(false);
+            this.PerformLayout();
 
         }
 
         #endregion
 
         private System.Windows.Forms.Panel panel1;
+        private System.Windows.Forms.CheckBox CizgiKaldirChckBox;
     }
 }

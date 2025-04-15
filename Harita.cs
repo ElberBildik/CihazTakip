@@ -7,15 +7,19 @@ using System.Text;
 using System.Windows.Forms;
 using System.Drawing.Drawing2D;
 
-
 namespace Cihaz_Takip_Uygulaması
 {
     public partial class Harita : Form
     {
         private List<CihazBilgi> cihazlar = new List<CihazBilgi>();
-        private int pointRadius = 8;//Nokaların büyüklüğü
+        private int pointRadius = 8;
         private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
         private Timer durumGuncellemeTimer;
+
+        private bool cizgileriGoster = true;
+        private bool enerjiPanolariniGoster = true;
+        private bool clientleriGoster = true;
+        private bool downDurumuGoster = true;
 
         public Harita()
         {
@@ -51,9 +55,8 @@ namespace Cihaz_Takip_Uygulaması
             public int SwitchRecNo { get; set; }
             public Shape Shape { get; set; }
             public string GrupKod { get; set; }
-            public string EnerjiPanoNo { get; set; } // Yeni özellik
+            public string EnerjiPanoNo { get; set; }
         }
-
 
         private enum Shape
         {
@@ -66,7 +69,6 @@ namespace Cihaz_Takip_Uygulaması
             PLC
         }
 
-
         private void VeritabanindanCihazlariYukle()
         {
             try
@@ -75,13 +77,12 @@ namespace Cihaz_Takip_Uygulaması
 
                 using (SqlConnection connection = new SqlConnection(connectionString))
                 {
-                    // EnerjiPanoNo'yu almak için SQL sorgusunu güncelleyin
                     string query = @"
-                SELECT c.RecNo, c.X, c.Y, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel, 
-                       c.SwitchRecNo, cg.Kod AS GrupKod, c.EnerjiPanoNo
-                FROM Cihaz c
-                INNER JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
-                WHERE c.X IS NOT NULL AND c.Y IS NOT NULL";
+                        SELECT c.RecNo, c.X, c.Y, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel, 
+                               c.SwitchRecNo, cg.Kod AS GrupKod, c.EnerjiPanoNo
+                        FROM Cihaz c
+                        INNER JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
+                        WHERE c.X IS NOT NULL AND c.Y IS NOT NULL";
 
                     SqlCommand command = new SqlCommand(query, connection);
                     connection.Open();
@@ -101,7 +102,6 @@ namespace Cihaz_Takip_Uygulaması
                                 MarkaModel = reader.IsDBNull(6) ? "N/A" : reader.GetString(6),
                                 SwitchRecNo = reader.GetInt32(7),
                                 GrupKod = reader.GetString(8),
-                                // EnerjiPanoNo'yu okuyun
                                 EnerjiPanoNo = reader.IsDBNull(9) ? null : reader.GetString(9)
                             };
 
@@ -113,10 +113,10 @@ namespace Cihaz_Takip_Uygulaması
                                     cihaz.Shape = Shape.Rectangle;
                                     break;
                                 case "Data Switch":
-                                    cihaz.Shape = Shape.Star; // Yıldız
+                                    cihaz.Shape = Shape.Star;
                                     break;
                                 case "Kamera Switch":
-                                    cihaz.Shape = Shape.Diamond; // Baklava dilimi
+                                    cihaz.Shape = Shape.Diamond;
                                     break;
                                 case "Kamera":
                                     cihaz.Shape = Shape.Triangle;
@@ -129,13 +129,11 @@ namespace Cihaz_Takip_Uygulaması
                                     break;
                             }
 
-
                             yeniCihazlar.Add(cihaz);
                         }
                     }
                 }
 
-                // Güncellendi mi kontrol et
                 bool degisiklikVar = yeniCihazlar.Count != cihazlar.Count;
                 if (!degisiklikVar)
                 {
@@ -164,131 +162,134 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
-
-
         private void Harita_Paint(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
 
-            // 1. Enerji panosuna bağlı cihazları çiz
-            foreach (var cihaz in cihazlar)
+            if (enerjiPanolariniGoster)
             {
-                if (!string.IsNullOrEmpty(cihaz.EnerjiPanoNo))
+                foreach (var cihaz in cihazlar)
                 {
-                    // Bağlı olduğu enerji panosunu bul
-                    var enerjiPanosu = cihazlar.FirstOrDefault(p => p.Aciklama == cihaz.EnerjiPanoNo && p.GrupKod == "Enerji panosu");
-
-                    if (enerjiPanosu != null)
+                    if (!string.IsNullOrEmpty(cihaz.EnerjiPanoNo))
                     {
-                        using (Pen redPen = new Pen(Color.Red, 2))
+                        var enerjiPanosu = cihazlar.FirstOrDefault(p => p.Aciklama == cihaz.EnerjiPanoNo && p.GrupKod == "Enerji panosu");
+
+                        if (enerjiPanosu != null)
                         {
-                            g.DrawLine(redPen, cihaz.X, cihaz.Y, enerjiPanosu.X, enerjiPanosu.Y);
+                            using (Pen redPen = new Pen(Color.Red, 2))
+                            {
+                                g.DrawLine(redPen, cihaz.X, cihaz.Y, enerjiPanosu.X, enerjiPanosu.Y);
+                            }
                         }
                     }
                 }
             }
 
-            // 2. Switch bağlantılarını çiz
-            foreach (var cihaz in cihazlar)
+            if (cizgileriGoster)
             {
-                if (cihaz.SwitchRecNo != 0 && cihaz.GrupKod != "Enerji panosu") //Enerji panosuna bağlı cihazları atla
+                foreach (var cihaz in cihazlar)
                 {
-                    var switchCihaz = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
-
-                    if (switchCihaz != null)
+                    if (cihaz.SwitchRecNo != 0 && cihaz.GrupKod != "Enerji panosu")
                     {
-                        Color renk = Color.Gray;
+                        var switchCihaz = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
 
-                        switch (cihaz.GrupKod)
+                        if (switchCihaz != null)
                         {
-                            case "Kamera":
-                                renk = Color.Chartreuse; // Switch->Kamera
-                                break;
-                            case "Yazıcı":
-                                renk = Color.DarkOrange;//Switch->Yazıcı
-                                break;
-                            case "KGS":
-                                renk = Color.Purple;//Switch->KGS
-                                break;
-                            default:    
-                                renk = Color.BlueViolet;//Tüm Client cihazlar 
-                                break;
-                        }
+                            Color renk = Color.Gray;
 
-                        using (Pen kalem = new Pen(renk, 3))
-                        {
-                            g.DrawLine(kalem, switchCihaz.X, switchCihaz.Y, cihaz.X, cihaz.Y);
+                            switch (cihaz.GrupKod)
+                            {
+                                case "Kamera":
+                                    renk = Color.Chartreuse;
+                                    break;
+                                case "Yazıcı":
+                                    renk = Color.DarkOrange;
+                                    break;
+                                case "KGS":
+                                    renk = Color.Purple;
+                                    break;
+                                default:
+                                    renk = Color.BlueViolet;
+                                    break;
+                            }
+
+                            using (Pen kalem = new Pen(renk, 3))
+                            {
+                                g.DrawLine(kalem, switchCihaz.X, switchCihaz.Y, cihaz.X, cihaz.Y);
+                            }
                         }
                     }
                 }
             }
 
-            // 3. Birbirine bağlı switch'leri çiz
-            foreach (var cihaz in cihazlar)
+            if (cizgileriGoster)
             {
-                if (cihaz.GrupKod == "Data Switch" || cihaz.GrupKod == "Kamera Switch")
+                foreach (var cihaz in cihazlar)
                 {
-                    // Switch'in bağlı olduğu switch'i bul
-                    var bagliSwitch = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
-
-                    if (bagliSwitch != null)
+                    if (cihaz.GrupKod == "Data Switch" || cihaz.GrupKod == "Kamera Switch")
                     {
-                        using (Pen kahverengiKalem = new Pen(Color.Brown, 2))
+                        var bagliSwitch = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
+
+                        if (bagliSwitch != null)
                         {
-                            g.DrawLine(kahverengiKalem, cihaz.X, cihaz.Y, bagliSwitch.X, bagliSwitch.Y);
+                            using (Pen kahverengiKalem = new Pen(Color.Brown, 2))
+                            {
+                                g.DrawLine(kahverengiKalem, cihaz.X, cihaz.Y, bagliSwitch.X, bagliSwitch.Y);
+                            }
                         }
                     }
                 }
             }
 
-            // 4. Cihazları çiz (şekiller)
-            foreach (var cihaz in cihazlar)//ChatGPT'den aldım 
+            foreach (var cihaz in cihazlar)
             {
+                if (!clientleriGoster && cihaz.GrupKod != "Enerji panosu" && cihaz.GrupKod != "Data Switch" && cihaz.GrupKod != "Kamera Switch" && cihaz.GrupKod != "Kamera" && cihaz.GrupKod != "PLC")
+                {
+                    continue;
+                }
+
+                if (!downDurumuGoster && cihaz.Durum.Equals("DOWN", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 using (Brush brush = new SolidBrush(cihaz.PointColor))
                 {
                     int diameter = pointRadius * 2;
 
                     switch (cihaz.Shape)
                     {
-                        case Shape.Triangle://Kamera Üçgen
+                        case Shape.Triangle:
                             Point[] trianglePoints = {
-                            new Point(cihaz.X, cihaz.Y - pointRadius),
-                            new Point(cihaz.X - pointRadius, cihaz.Y + pointRadius),
-                            new Point(cihaz.X + pointRadius, cihaz.Y + pointRadius)
-                        };
+                                new Point(cihaz.X, cihaz.Y - pointRadius),
+                                new Point(cihaz.X - pointRadius, cihaz.Y + pointRadius),
+                                new Point(cihaz.X + pointRadius, cihaz.Y + pointRadius)
+                            };
                             g.FillPolygon(brush, trianglePoints);
                             break;
 
-
-
                         case Shape.Star:
                             Point[] starPoints = {
-        new Point(cihaz.X, cihaz.Y - pointRadius),
-        new Point(cihaz.X + (int)(pointRadius * 0.4), cihaz.Y - (int)(pointRadius * 0.4)),
-        new Point(cihaz.X + pointRadius, cihaz.Y - (int)(pointRadius * 0.4)),
-        new Point(cihaz.X + (int)(pointRadius * 0.6), cihaz.Y + (int)(pointRadius * 0.2)),
-        new Point(cihaz.X + (int)(pointRadius * 0.8), cihaz.Y + pointRadius),
-        new Point(cihaz.X, cihaz.Y + (int)(pointRadius * 0.6)),
-        new Point(cihaz.X - (int)(pointRadius * 0.8), cihaz.Y + pointRadius),
-        new Point(cihaz.X - (int)(pointRadius * 0.6), cihaz.Y + (int)(pointRadius * 0.2)),
-        new Point(cihaz.X - pointRadius, cihaz.Y - (int)(pointRadius * 0.4)),
-        new Point(cihaz.X - (int)(pointRadius * 0.4), cihaz.Y - (int)(pointRadius * 0.4)),
-    };
+                                new Point(cihaz.X, cihaz.Y - pointRadius),
+                                new Point(cihaz.X + (int)(pointRadius * 0.4), cihaz.Y - (int)(pointRadius * 0.4)),
+                                new Point(cihaz.X + pointRadius, cihaz.Y - (int)(pointRadius * 0.4)),
+                                new Point(cihaz.X + (int)(pointRadius * 0.6), cihaz.Y + (int)(pointRadius * 0.2)),
+                                new Point(cihaz.X + (int)(pointRadius * 0.8), cihaz.Y + pointRadius),
+                                new Point(cihaz.X, cihaz.Y + (int)(pointRadius * 0.6)),
+                                new Point(cihaz.X - (int)(pointRadius * 0.8), cihaz.Y + pointRadius),
+                                new Point(cihaz.X - (int)(pointRadius * 0.6), cihaz.Y + (int)(pointRadius * 0.2)),
+                                new Point(cihaz.X - pointRadius, cihaz.Y - (int)(pointRadius * 0.4)),
+                                new Point(cihaz.X - (int)(pointRadius * 0.4), cihaz.Y - (int)(pointRadius * 0.4)),
+                            };
                             g.FillPolygon(brush, starPoints);
                             break;
 
-
-
-
-
-                        case Shape.PLC://PLC ÇİZİMİ
-                            // Ana gövde (gri yatay kutu)
+                        case Shape.PLC:
                             using (Brush plcBrush = new SolidBrush(Color.Orange))
                             {
                                 g.FillRectangle(plcBrush, cihaz.X - pointRadius - 4, cihaz.Y - pointRadius, pointRadius * 2 + 8, pointRadius * 2);
                             }
 
-                            // Bağlantı portları (küçük açık gri dikdörtgenler)
                             using (Brush portBrush = new SolidBrush(Color.DarkSlateGray))
                             {
                                 for (int i = 0; i < 3; i++)
@@ -297,16 +298,13 @@ namespace Cihaz_Takip_Uygulaması
                                 }
                             }
 
-                            // PLC etiketi
                             using (Font font = new Font("Arial", 6))
                             {
                                 g.DrawString("PLC", font, Brushes.Black, cihaz.X - 8, cihaz.Y - 12);
                             }
                             break;
 
-
-                        case Shape.Rectangle://Enerji Panosu
-                            // Gövde (turuncu, yuvarlatılmış kenarlı dikdörtgen)
+                        case Shape.Rectangle:
                             using (GraphicsPath path = new GraphicsPath())
                             {
                                 Rectangle rect = new Rectangle(cihaz.X - pointRadius, cihaz.Y - pointRadius, pointRadius * 2, pointRadius * 2 + 10);
@@ -319,20 +317,18 @@ namespace Cihaz_Takip_Uygulaması
                                 path.CloseFigure();
 
                                 using (Brush brushBody = new SolidBrush(Color.Cyan))
-                                using (Pen borderPen = new Pen(Color.OrangeRed, 2))
+                                using (Pen borderPen = new Pen(Color.Blue, 2))
                                 {
                                     g.FillPath(brushBody, path);
                                     g.DrawPath(borderPen, path);
                                 }
                             }
 
-                            // Kapak çizgisi
                             using (Pen kapakKalem = new Pen(Color.Black, 2))
                             {
                                 g.DrawLine(kapakKalem, cihaz.X - pointRadius + 2, cihaz.Y, cihaz.X + pointRadius - 2, cihaz.Y);
                             }
 
-                            // Sigorta noktaları (3 adet küçük siyah daire)
                             using (Brush sigortaBrush = new SolidBrush(Color.Black))
                             {
                                 for (int i = 0; i < 3; i++)
@@ -341,17 +337,16 @@ namespace Cihaz_Takip_Uygulaması
                                 }
                             }
                             break;
+
                         case Shape.Diamond:
                             Point[] diamondPoints = {
-                        new Point(cihaz.X, cihaz.Y - pointRadius),
-                        new Point(cihaz.X - pointRadius, cihaz.Y),
-                        new Point(cihaz.X, cihaz.Y + pointRadius),
-                        new Point(cihaz.X + pointRadius, cihaz.Y)
-                    };
+                                new Point(cihaz.X, cihaz.Y - pointRadius),
+                                new Point(cihaz.X - pointRadius, cihaz.Y),
+                                new Point(cihaz.X, cihaz.Y + pointRadius),
+                                new Point(cihaz.X + pointRadius, cihaz.Y)
+                            };
                             g.FillPolygon(brush, diamondPoints);
                             break;
-
-
 
                         case Shape.Circle:
                             g.FillEllipse(brush, cihaz.X - pointRadius, cihaz.Y - pointRadius, diameter, diameter);
@@ -360,10 +355,6 @@ namespace Cihaz_Takip_Uygulaması
                 }
             }
         }
-
-
-
-
 
         private void Harita_MouseClick(object sender, MouseEventArgs e)
         {
@@ -444,6 +435,12 @@ namespace Cihaz_Takip_Uygulaması
 
         private void Harita_Load(object sender, EventArgs e)
         {
+        }
+
+        private void CizgiKaldirChckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            cizgileriGoster = !CizgiKaldirChckBox.Checked;
+            panel1.Invalidate();
         }
     }
 }
