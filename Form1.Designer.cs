@@ -29,7 +29,7 @@ namespace Cihaz_Takip_Uygulaması
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Harita));
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.panel2 = new System.Windows.Forms.Panel();
             this.Cihazlar = new System.Windows.Forms.DataGridView();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
@@ -101,6 +101,7 @@ namespace Cihaz_Takip_Uygulaması
             this.pictureBox1.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.pictureBox1.TabIndex = 3;
             this.pictureBox1.TabStop = false;
+            this.pictureBox1.Click += new System.EventHandler(this.pictureBox1_Click_1);
             // 
             // groupBox3
             // 
@@ -124,6 +125,7 @@ namespace Cihaz_Takip_Uygulaması
             this.pictureBox2.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.pictureBox2.TabIndex = 3;
             this.pictureBox2.TabStop = false;
+            this.pictureBox2.Click += new System.EventHandler(this.pictureBox2_Click);
             // 
             // label1
             // 
@@ -181,6 +183,7 @@ namespace Cihaz_Takip_Uygulaması
             this.PingIptalBtn.TabIndex = 1;
             this.PingIptalBtn.Text = "Ping Atma İşlemini Durdur";
             this.PingIptalBtn.UseVisualStyleBackColor = false;
+            this.PingIptalBtn.Click += new System.EventHandler(this.PingIptalBtn_Click_1);
             // 
             // PingAtBtn
             // 
@@ -194,6 +197,7 @@ namespace Cihaz_Takip_Uygulaması
             this.PingAtBtn.TabIndex = 0;
             this.PingAtBtn.Text = "Ping Atma İşlemini Başlat";
             this.PingAtBtn.UseVisualStyleBackColor = false;
+            this.PingAtBtn.Click += new System.EventHandler(this.PingAtBtn_Click_1);
             // 
             // groupBox4
             // 
@@ -254,7 +258,7 @@ namespace Cihaz_Takip_Uygulaması
             this.rchTextBildirimler.TabIndex = 0;
             this.rchTextBildirimler.Text = "";
             // 
-            // Harita
+            // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -265,7 +269,7 @@ namespace Cihaz_Takip_Uygulaması
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.panel2);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-            this.Name = "Harita";
+            this.Name = "Form1";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Cihazlar";
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;

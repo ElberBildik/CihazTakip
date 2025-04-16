@@ -334,7 +334,7 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
-        private async void PingAtBtn_Click(object sender, EventArgs e)
+        private async void PingAtBtn_Click_1(object sender, EventArgs e)
         {
             _pingTimer.Start();
             LogMessage("Ping işlemi başlatılıyor...", Color.Blue);
@@ -388,7 +388,7 @@ namespace Cihaz_Takip_Uygulaması
             HücreRenkleme.DurumRenklendir(Cihazlar);
         }
 
-        private void PingIptalBtn_Click(object sender, EventArgs e)
+        private void PingIptalBtn_Click_1(object sender, EventArgs e)
         {
             DialogResult result = MessageBox.Show(
                 "Ping atma işlemini durdurmak istiyor musunuz?",
@@ -414,7 +414,7 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
-        private void pictureBox1_Click(object sender, EventArgs e)
+        private void pictureBox1_Click_1(object sender, EventArgs e)
         {
             LogMessage("Veriler yenileniyor...", Color.Blue);
             RefreshDeviceData();
@@ -453,7 +453,7 @@ namespace Cihaz_Takip_Uygulaması
             LogMessage("Uygulama başlatıldı.", Color.Blue);
         }
 
-        private void pictureBox2_Click_1(object sender, EventArgs e)
+        private void pictureBox2_Click(object sender, EventArgs e)
         {
             string ipNo = araTxtBox.Text;
 
