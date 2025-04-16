@@ -11,7 +11,6 @@ using System.Windows.Forms;
 
 namespace Cihaz_Takip_Uygulaması
 {
-    
     public partial class Harita : Form
     {
         Graphics g;
@@ -19,128 +18,94 @@ namespace Cihaz_Takip_Uygulaması
         private int pointRadius = 8;
         private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
         private Timer durumGuncellemeTimer;
-        
-        
 
         private bool cizgileriGoster = true;
         private bool enerjiPanolariniGoster = true;
         private bool clientleriGoster = true;
         private bool downDurumuGoster = true;
 
-        // Zoom için yeni değişkenler
+        // Zoom için değişkenler
         private float zoomFactor = 1.0f;
+        private float previousZoomFactor = 1.0f;
         private const float zoomIncrement = 0.1f;
         private const float minZoom = 0.5f;
         private const float maxZoom = 3.0f;
         private Point lastPanPoint;
         private bool isPanning = false;
-        private Point panOffset = new Point(0, 0);
         private Image backgroundImage = null;
-        private Image originalBackgroundImage = null; // Orijinal resmi saklamak için
-        private Size originalImageSize; // Orijinal boyutları saklamak için
+        private Image originalBackgroundImage = null;
+        private Size originalImageSize;
+        private Size virtualSize;
 
         public Harita()
         {
             InitializeComponent();
             this.DoubleBuffered = true;
+
+            // AutoScroll özelliğini aktif et
+            this.panel1.AutoScroll = true;
+
             this.panel1.Paint += Harita_Paint;
             this.panel1.MouseClick += Harita_MouseClick;
 
-            // Zoom ve Pan için yeni olay işleyicileri ekleyin
+            // Zoom ve Pan için olay işleyicileri
             this.panel1.MouseWheel += Panel1_MouseWheel;
             this.panel1.MouseDown += Panel1_MouseDown;
             this.panel1.MouseMove += Panel1_MouseMove;
             this.panel1.MouseUp += Panel1_MouseUp;
 
-            // Arka plan resmini yükleyin (eğer varsa)
+            // Arka plan resmini yükle
             string imagePath = @"C:\Users\ebildik\Desktop\Genel Layout.PNG";
-            backgroundImage = Image.FromFile(imagePath);
-            originalBackgroundImage = Image.FromFile(imagePath);
+            try
+            {
+                backgroundImage = Image.FromFile(imagePath);
+                originalBackgroundImage = Image.FromFile(imagePath);
+                originalImageSize = backgroundImage.Size;
 
+                // İlk açılışta virtual size'ı ayarla
+                UpdateVirtualSize();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Arka plan resmi yüklenirken hata oluştu: " + ex.Message,
+                    "Resim Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
 
             VeritabanindanCihazlariYukle();
             durumGuncellemeTimer = new Timer();
-            durumGuncellemeTimer.Interval = 1000;
+            durumGuncellemeTimer.Interval = 100;
             durumGuncellemeTimer.Tick += DurumGuncellemeTimer_Tick;
             durumGuncellemeTimer.Start();
 
-            // Zoom kontrolleri için butonlar ekleyin
-            InitializeZoomControls();
 
-            // Formun Resize olayını işle
             this.Resize += Harita_Resize;
 
-            // Formun BackgroundImageLayout özelliğini Zoom olarak ayarla
+
             this.BackgroundImageLayout = ImageLayout.Zoom;
         }
 
-        private void InitializeZoomControls()
+
+        private void UpdateVirtualSize()
         {
-            // Zoom In butonu
-            Button btnZoomIn = new Button();
-            btnZoomIn.Text = "+";
-            btnZoomIn.Size = new Size(30, 30);
-            btnZoomIn.Location = new Point(10, 10);
-            btnZoomIn.Click += (s, e) => {
-                ZoomIn();
-            };
-            this.Controls.Add(btnZoomIn);
-
-            // Zoom Out butonu
-            Button btnZoomOut = new Button();
-            btnZoomOut.Text = "-";
-            btnZoomOut.Size = new Size(30, 30);
-            btnZoomOut.Location = new Point(45, 10);
-            btnZoomOut.Click += (s, e) => {
-                ZoomOut();
-            };
-            this.Controls.Add(btnZoomOut);
-
-            // Reset Zoom butonu
-            Button btnResetZoom = new Button();
-            btnResetZoom.Text = "1:1";
-            btnResetZoom.Size = new Size(30, 30);
-            btnResetZoom.Location = new Point(80, 10);
-            btnResetZoom.Click += (s, e) => {
-                ResetZoom();
-            };
-            this.Controls.Add(btnResetZoom);
-
-            // İsteğe bağlı: Zoom durumunu gösteren label
-            Label lblZoomStatus = new Label();
-            lblZoomStatus.Text = "Zoom: 100%";
-            lblZoomStatus.AutoSize = true;
-            lblZoomStatus.Location = new Point(120, 15);
-            lblZoomStatus.Name = "lblZoomStatus";
-            this.Controls.Add(lblZoomStatus);
-        }
-
-        private void ZoomIn()
-        {
-            if (zoomFactor < maxZoom)
+            if (backgroundImage != null)
             {
-                zoomFactor += zoomIncrement;
-                UpdateZoomStatus();
-                panel1.Invalidate();
-            }
-        }
 
-        private void ZoomOut()
-        {
-            if (zoomFactor > minZoom)
-            {
-                zoomFactor -= zoomIncrement;
-                UpdateZoomStatus();
-                panel1.Invalidate();
-            }
-        }
+                int virtualWidth = (int)(this.Width * zoomFactor);
+                int virtualHeight = (int)(this.Height * zoomFactor);
+                panel1.AutoScrollMinSize = new Size(virtualWidth, virtualHeight);
+                if (previousZoomFactor > 0 && previousZoomFactor != zoomFactor)
+                {
+                    float zoomRatio = zoomFactor / previousZoomFactor;
 
-        private void ResetZoom()
-        {
-            zoomFactor = 1.0f;
-            panOffset = new Point(0, 0);
-            UpdateZoomStatus();
-            panel1.Invalidate();
+                    Point currentPos = panel1.AutoScrollPosition;
+                    int newX = (int)((-currentPos.X) * zoomRatio);
+                    int newY = (int)((-currentPos.Y) * zoomRatio);
+
+                    panel1.AutoScrollPosition = new Point(newX, newY);
+                }
+
+                virtualSize = new Size(virtualWidth, virtualHeight);
+            }
         }
 
         private void Panel1_MouseWheel(object sender, MouseEventArgs e)
@@ -148,48 +113,66 @@ namespace Cihaz_Takip_Uygulaması
             // Fare tekerleği ile zoom yapma
             float oldZoom = zoomFactor;
 
+            // Mevcut scroll konumunu al ve pozitif değerlere çevir
+            Point scrollPos = panel1.AutoScrollPosition;
+            scrollPos.X = -scrollPos.X; // Negatif değerleri pozitife çevir
+            scrollPos.Y = -scrollPos.Y;
+
+            // Fare imlecinin içerik (belge) üzerindeki gerçek pozisyonunu hesapla
+            PointF docPoint = new PointF(
+                (e.Location.X + scrollPos.X) / oldZoom,
+                (e.Location.Y + scrollPos.Y) / oldZoom
+            );
+
             // Zoom yönü
             if (e.Delta > 0)
             {
                 if (zoomFactor < maxZoom)
+                {
+                    previousZoomFactor = zoomFactor;
                     zoomFactor += zoomIncrement;
+                }
             }
             else
             {
                 if (zoomFactor > minZoom)
+                {
+                    previousZoomFactor = zoomFactor;
                     zoomFactor -= zoomIncrement;
+                }
             }
 
-            // Zoom merkezi olarak fare pozisyonunu kullan
+            // Zoom değiştiyse, farenin aynı pozisyonda kalması için scroll pozisyonunu ayarla
             if (oldZoom != zoomFactor)
             {
-                // Fare konumunu odak noktası olarak ayarla
-                Point mousePoint = e.Location;
+                // Yeni zoom faktörü için sanal boyutu ayarla
+                UpdateVirtualSize();
 
-                // Zoom öncesi fare konumunun dönüşümü
-                Point oldPoint = new Point(
-                    (int)((mousePoint.X - panOffset.X) / oldZoom),
-                    (int)((mousePoint.Y - panOffset.Y) / oldZoom)
+                // Zoom sonrası fare imlecinin belge üzerindeki yeni pozisyonunu hesapla
+                PointF newDocPoint = new PointF(
+                    docPoint.X * zoomFactor,
+                    docPoint.Y * zoomFactor
                 );
 
-                // Zoom sonrası fare konumunun dönüşümü
-                Point newPoint = new Point(
-                    (int)((mousePoint.X - panOffset.X) / zoomFactor),
-                    (int)((mousePoint.Y - panOffset.Y) / zoomFactor)
+                // Yeni scroll pozisyonunu hesapla
+                Point newScrollPos = new Point(
+                    (int)(newDocPoint.X - e.Location.X),
+                    (int)(newDocPoint.Y - e.Location.Y)
                 );
 
-                // Kaydırma ofsetini ayarla
-                panOffset.X += (int)((newPoint.X - oldPoint.X) * zoomFactor);
-                panOffset.Y += (int)((newPoint.Y - oldPoint.Y) * zoomFactor);
+                // Yeni scroll pozisyonunu uygula
+                panel1.AutoScrollPosition = newScrollPos;
 
+                // Zoom durumunu güncelle ve yeniden çizimi tetikle
                 UpdateZoomStatus();
                 panel1.Invalidate();
             }
         }
 
+
         private void Panel1_MouseDown(object sender, MouseEventArgs e)
         {
-            // Fare orta tuşu veya sol tuş ile pan yapmaya başla
+            // Fare orta tuşu veya sol tuş + Ctrl ile pan yapmaya başla
             if (e.Button == MouseButtons.Middle || (e.Button == MouseButtons.Left && ModifierKeys == Keys.Control))
             {
                 isPanning = true;
@@ -202,11 +185,26 @@ namespace Cihaz_Takip_Uygulaması
         {
             if (isPanning)
             {
-                // Pan yaparken ofseti güncelle
-                panOffset.X += e.X - lastPanPoint.X;
-                panOffset.Y += e.Y - lastPanPoint.Y;
+                // Ne kadar kaydırılacağını hesapla
+                int deltaX = lastPanPoint.X - e.X;
+                int deltaY = lastPanPoint.Y - e.Y;
+
+                // Mevcut scroll pozisyonunu al (AutoScrollPosition değerleri negatiftir)
+                Point currentPos = panel1.AutoScrollPosition;
+                currentPos.X = -currentPos.X; // Pozitife çevir
+                currentPos.Y = -currentPos.Y; // Pozitife çevir
+
+                // Yeni scroll pozisyonunu hesapla
+                Point newPos = new Point(
+                    currentPos.X + deltaX,
+                    currentPos.Y + deltaY
+                );
+
+                // Yeni scroll pozisyonunu ayarla
+                panel1.AutoScrollPosition = newPos;
+
+                // Son pan noktasını güncelle
                 lastPanPoint = e.Location;
-                panel1.Invalidate();
             }
         }
 
@@ -220,29 +218,109 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
+
         private void Harita_Paint(object sender, PaintEventArgs e)
         {
-             g = e.Graphics;
+            g = e.Graphics;
 
-            // Yüksek kaliteli render için ayarlar
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-            // Dönüşüm matrisini ayarla
             Matrix transformMatrix = new Matrix();
-            transformMatrix.Translate(panOffset.X, panOffset.Y); // Önce pan
-            transformMatrix.Scale(zoomFactor, zoomFactor); // Sonra zoom
+            Point scrollPos = panel1.AutoScrollPosition;
+            transformMatrix.Translate(-scrollPos.X, -scrollPos.Y);
+            transformMatrix.Scale(zoomFactor, zoomFactor);
             g.Transform = transformMatrix;
 
-            // Arka plan resmini çiz (eğer varsa)
             if (backgroundImage != null)
             {
-                // Arka plan resmini çizme
                 g.DrawImage(backgroundImage, 0, 0, this.Width, this.Height);
-                
-                
             }
+
+            DrawConnections();
+            foreach (var cihaz in cihazlar)
+            {
+                if (!clientleriGoster && !IsAllowedDeviceType(cihaz.GrupKod))
+                    continue;
+
+                string pngFilePath = GetPngFilePath(cihaz.GrupKod);
+                if (!File.Exists(pngFilePath))
+                {
+                    Console.WriteLine($"PNG bulunamadı: {pngFilePath}");
+                    continue;
+                }
+
+                using (Image cihazImage = Image.FromFile(pngFilePath))
+                {
+                    Bitmap coloredImage = new Bitmap(cihazImage.Width, cihazImage.Height);
+
+                    Color tintColor;
+                    if (!string.IsNullOrEmpty(cihaz.Durum) &&
+                        cihaz.Durum.IndexOf("UP", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        tintColor = Color.FromArgb(170, Color.Green); // Yarı saydam yeşil
+                    }
+                    else if (!string.IsNullOrEmpty(cihaz.Durum) &&
+                             cihaz.Durum.IndexOf("Down", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        tintColor = Color.FromArgb(170, Color.Red); // Yarı saydam kırmızı
+                    }
+                    else
+                    {
+                        tintColor = Color.FromArgb(170, Color.Gray); // Bilinmeyen için gri
+                    }
+
+                    using (Graphics imageGraphics = Graphics.FromImage(coloredImage))
+                    {
+                        imageGraphics.DrawImage(cihazImage, 0, 0, cihazImage.Width, cihazImage.Height);
+
+                        // PNG'nin üzerine yarı saydam renk maskesi uygula
+                        using (Brush overlay = new SolidBrush(tintColor))
+                        {
+                            imageGraphics.FillRectangle(overlay, 0, 0, coloredImage.Width, coloredImage.Height);
+                        }
+                    }
+
+                    float iconSize = 32;
+                    RectangleF cihazRect = new RectangleF(
+                        cihaz.X - iconSize / 2,
+                        cihaz.Y - iconSize / 2,
+                        iconSize,
+                        iconSize);
+
+                    Rectangle cihazRectInt = new Rectangle(
+                        (int)cihazRect.X, (int)cihazRect.Y,
+                        (int)cihazRect.Width, (int)cihazRect.Height);
+
+                    g.DrawImage(coloredImage, cihazRectInt);
+
+                    coloredImage.Dispose();
+                }
+            }
+        }
+
+
+
+        private bool IsAllowedDeviceType(string grupKod)
+        {
+            // İzin verilen grup kodlarını kontrol et
+            string[] allowedDeviceTypes = {
+        "KGS", "Yazıcı", "Kamera", "Data Switch", "Enerji panosu", "Bilgisayarlar", "PLC", "Kamera Switch"
+    };
+            return allowedDeviceTypes.Any(type => string.Equals(type, grupKod, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private string GetPngFilePath(string grupKod)
+        {
+            string basePath = @"C:\Users\ebildik\Desktop\PNG"; // PNG dosyalarının bulunduğu dizin
+            string fileName = $"{grupKod}.png"; // Örnek: "Kamera.png" veya "EnerjiPano.png"
+            return Path.Combine(basePath, fileName);
+        }
+
+        private void DrawConnections()
+        {
+            // Çizgi çizme mantığını buraya taşıdık (mevcut kodda varsa)
             if (enerjiPanolariniGoster)
             {
                 foreach (var cihaz in cihazlar)
@@ -297,10 +375,7 @@ namespace Cihaz_Takip_Uygulaması
                         }
                     }
                 }
-            }
 
-            if (cizgileriGoster)
-            {
                 foreach (var cihaz in cihazlar)
                 {
                     if (cihaz.GrupKod == "Data Switch" || cihaz.GrupKod == "Kamera Switch")
@@ -317,142 +392,33 @@ namespace Cihaz_Takip_Uygulaması
                     }
                 }
             }
-
-            foreach (var cihaz in cihazlar)
-            {
-                if (!clientleriGoster && cihaz.GrupKod != "Enerji panosu" && cihaz.GrupKod != "Data Switch" && cihaz.GrupKod != "Kamera Switch" && cihaz.GrupKod != "Kamera" && cihaz.GrupKod != "PLC")
-                {
-                    continue;
-                }
-
-                if (!downDurumuGoster && cihaz.Durum.Equals("DOWN", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                using (Brush brush = new SolidBrush(cihaz.PointColor))
-                {
-                    int diameter = pointRadius * 2;
-
-                    switch (cihaz.Shape)
-                    {
-                        case Shape.Triangle:
-                            Point[] trianglePoints = {
-                                new Point(cihaz.X, cihaz.Y - pointRadius),
-                                new Point(cihaz.X - pointRadius, cihaz.Y + pointRadius),
-                                new Point(cihaz.X + pointRadius, cihaz.Y + pointRadius)
-                            };
-                            g.FillPolygon(brush, trianglePoints);
-                            break;
-
-                        case Shape.Star:
-                            Point[] starPoints = {
-                                new Point(cihaz.X, cihaz.Y - pointRadius),
-                                new Point(cihaz.X + (int)(pointRadius * 0.4), cihaz.Y - (int)(pointRadius * 0.4)),
-                                new Point(cihaz.X + pointRadius, cihaz.Y - (int)(pointRadius * 0.4)),
-                                new Point(cihaz.X + (int)(pointRadius * 0.6), cihaz.Y + (int)(pointRadius * 0.2)),
-                                new Point(cihaz.X + (int)(pointRadius * 0.8), cihaz.Y + pointRadius),
-                                new Point(cihaz.X, cihaz.Y + (int)(pointRadius * 0.6)),
-                                new Point(cihaz.X - (int)(pointRadius * 0.8), cihaz.Y + pointRadius),
-                                new Point(cihaz.X - (int)(pointRadius * 0.6), cihaz.Y + (int)(pointRadius * 0.2)),
-                                new Point(cihaz.X - pointRadius, cihaz.Y - (int)(pointRadius * 0.4)),
-                                new Point(cihaz.X - (int)(pointRadius * 0.4), cihaz.Y - (int)(pointRadius * 0.4)),
-                            };
-                            g.FillPolygon(brush, starPoints);
-                            break;
-
-                        case Shape.PLC:
-                            using (Brush plcBrush = new SolidBrush(Color.Orange))
-                            {
-                                g.FillRectangle(plcBrush, cihaz.X - pointRadius - 4, cihaz.Y - pointRadius, pointRadius * 2 + 8, pointRadius * 2);
-                            }
-
-                            using (Brush portBrush = new SolidBrush(Color.DarkSlateGray))
-                            {
-                                for (int i = 0; i < 3; i++)
-                                {
-                                    g.FillRectangle(portBrush, cihaz.X - 6 + i * 6, cihaz.Y - 2, 3, 4);
-                                }
-                            }
-
-                            using (Font font = new Font("Arial", 6))
-                            {
-                                g.DrawString("PLC", font, Brushes.Black, cihaz.X - 8, cihaz.Y - 12);
-                            }
-                            break;
-
-                        case Shape.Rectangle:
-                            using (GraphicsPath path = new GraphicsPath())
-                            {
-                                Rectangle rect = new Rectangle(cihaz.X - pointRadius, cihaz.Y - pointRadius, pointRadius * 2, pointRadius * 2 + 10);
-                                int cornerRadius = 6;
-
-                                path.AddArc(rect.X, rect.Y, cornerRadius, cornerRadius, 180, 90);
-                                path.AddArc(rect.Right - cornerRadius, rect.Y, cornerRadius, cornerRadius, 270, 90);
-                                path.AddArc(rect.Right - cornerRadius, rect.Bottom - cornerRadius, cornerRadius, cornerRadius, 0, 90);
-                                path.AddArc(rect.X, rect.Bottom - cornerRadius, cornerRadius, cornerRadius, 90, 90);
-                                path.CloseFigure();
-
-                                using (Brush brushBody = new SolidBrush(Color.Cyan))
-                                using (Pen borderPen = new Pen(Color.Blue, 2))
-                                {
-                                    g.FillPath(brushBody, path);
-                                    g.DrawPath(borderPen, path);
-                                }
-                            }
-
-                            using (Pen kapakKalem = new Pen(Color.Black, 2))
-                            {
-                                g.DrawLine(kapakKalem, cihaz.X - pointRadius + 2, cihaz.Y, cihaz.X + pointRadius - 2, cihaz.Y);
-                            }
-
-                            using (Brush sigortaBrush = new SolidBrush(Color.Black))
-                            {
-                                for (int i = 0; i < 3; i++)
-                                {
-                                    g.FillEllipse(sigortaBrush, cihaz.X - 6 + i * 6, cihaz.Y + 4, 3, 3);
-                                }
-                            }
-                            break;
-
-                        case Shape.Diamond:
-                            Point[] diamondPoints = {
-                                new Point(cihaz.X, cihaz.Y - pointRadius),
-                                new Point(cihaz.X - pointRadius, cihaz.Y),
-                                new Point(cihaz.X, cihaz.Y + pointRadius),
-                                new Point(cihaz.X + pointRadius, cihaz.Y)
-                            };
-                            g.FillPolygon(brush, diamondPoints);
-                            break;
-
-                        case Shape.Circle:
-                            g.FillEllipse(brush, cihaz.X - pointRadius, cihaz.Y - pointRadius, diameter, diameter);
-                            break;
-                    }
-                }
-            }
         }
 
         private void Harita_MouseClick(object sender, MouseEventArgs e)
         {
-            // Mouse tıklaması koordinatlarını zoom faktöründen geri çevirin
-            Point transformedPoint = new Point(
-                (int)((e.X - panOffset.X) / zoomFactor),
-                (int)((e.Y - panOffset.Y) / zoomFactor)
-            );
+            // Convert screen coordinates to document coordinates
+            Point scrollPos = panel1.AutoScrollPosition;
+            // Note: AutoScrollPosition returns negative values
+            float docX = (e.X - scrollPos.X) / zoomFactor;
+            float docY = (e.Y - scrollPos.Y) / zoomFactor;
 
-            MessageBox.Show($"Tıklanan Nokta:\nX: {transformedPoint.X}, Y: {transformedPoint.Y}", "Lokasyon");
+            // For debugging
+            Console.WriteLine($"Click at screen: {e.X},{e.Y}, doc: {docX},{docY}");
 
             CihazBilgi enYakinCihaz = null;
             double enKucukMesafe = double.MaxValue;
 
             foreach (var cihaz in cihazlar)
             {
-                int dx = transformedPoint.X - cihaz.X;
-                int dy = transformedPoint.Y - cihaz.Y;
+                // Calculate distance to device center
+                double dx = docX - cihaz.X;
+                double dy = docY - cihaz.Y;
                 double distance = Math.Sqrt(dx * dx + dy * dy);
 
-                if (distance <= pointRadius + 5 && distance < enKucukMesafe)
+                // Increase detection radius to make clicking easier
+                float clickRadius = pointRadius + 12; // Increased from 5 to 12
+
+                if (distance <= clickRadius && distance < enKucukMesafe)
                 {
                     enKucukMesafe = distance;
                     enYakinCihaz = cihaz;
@@ -461,11 +427,18 @@ namespace Cihaz_Takip_Uygulaması
 
             if (enYakinCihaz != null)
             {
+                Console.WriteLine($"Device found: {enYakinCihaz.Aciklama} (RecNo: {enYakinCihaz.RecNo})");
                 GuncelCihazBilgisiGoster(enYakinCihaz.RecNo);
+            }
+            else
+            {
+                Console.WriteLine("No device found near click point");
+                // Optional: Display coordinates for debugging
+                MessageBox.Show($"Tıklanan Nokta:\nX: {docX}, Y: {docY}", "Lokasyon");
             }
         }
 
-        // Arka plan resmi ayarlamak için yeni metod
+        // Arka plan resmi ayarlamak için metod
         public void SetBackgroundImage(string imagePath)
         {
             try
@@ -480,6 +453,10 @@ namespace Cihaz_Takip_Uygulaması
                     backgroundImage = Image.FromFile(imagePath);
                     originalBackgroundImage = Image.FromFile(imagePath); // Orijinal resmi sakla
                     originalImageSize = backgroundImage.Size; // Orijinal boyutları sakla
+
+                    // Resim değiştiğinde virtual size'ı güncelle
+                    UpdateVirtualSize();
+
                     panel1.Invalidate();
                 }
                 else
@@ -494,6 +471,7 @@ namespace Cihaz_Takip_Uygulaması
                     "Resim Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
         private void UpdateZoomStatus()
         {
             // Form üzerindeki zoom etiketini güncelle
@@ -519,20 +497,8 @@ namespace Cihaz_Takip_Uygulaması
             public string MarkaModel { get; set; }
             public Color PointColor { get; set; }
             public int SwitchRecNo { get; set; }
-            public Shape Shape { get; set; }
             public string GrupKod { get; set; }
             public string EnerjiPanoNo { get; set; }
-        }
-
-        private enum Shape
-        {
-            Circle,
-            Rectangle,
-            Triangle,
-            Diamond,
-            Star,
-            Camera,
-            PLC
         }
 
         private void VeritabanindanCihazlariYukle()
@@ -572,28 +538,6 @@ namespace Cihaz_Takip_Uygulaması
                             };
 
                             cihaz.PointColor = cihaz.Durum.Equals("UP", StringComparison.OrdinalIgnoreCase) ? Color.Green : Color.Red;
-
-                            switch (cihaz.GrupKod)
-                            {
-                                case "Enerji panosu":
-                                    cihaz.Shape = Shape.Rectangle;
-                                    break;
-                                case "Data Switch":
-                                    cihaz.Shape = Shape.Star;
-                                    break;
-                                case "Kamera Switch":
-                                    cihaz.Shape = Shape.Diamond;
-                                    break;
-                                case "Kamera":
-                                    cihaz.Shape = Shape.Triangle;
-                                    break;
-                                case "PLC":
-                                    cihaz.Shape = Shape.PLC;
-                                    break;
-                                default:
-                                    cihaz.Shape = Shape.Circle;
-                                    break;
-                            }
 
                             yeniCihazlar.Add(cihaz);
                         }
@@ -690,13 +634,10 @@ namespace Cihaz_Takip_Uygulaması
             panel1.Invalidate();
         }
 
-        private void DownCihazlar_CheckedChanged(object sender, EventArgs e)
+        private void DownCihazlar_CheckedChanged_1(object sender, EventArgs e)
         {
-            // Harita panelini temizle
-            panel1.Controls.Clear();
+            //panel1.Controls.Clear();
         }
-
-
         private void CizgiKaldirChckBox_CheckedChanged_1(object sender, EventArgs e)
         {
             cizgileriGoster = !CizgiKaldirChckBox.Checked;

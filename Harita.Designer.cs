@@ -56,6 +56,7 @@ namespace Cihaz_Takip_Uygulaması
             this.DownCihazlar.TabIndex = 0;
             this.DownCihazlar.Text = "Down Olan Cihazları Göster";
             this.DownCihazlar.UseVisualStyleBackColor = true;
+            this.DownCihazlar.CheckedChanged += new System.EventHandler(this.DownCihazlar_CheckedChanged_1);
             // 
             // CizgiKaldirChckBox
             // 
