@@ -1,19 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Cihaz_Takip_Uygulaması
 {
     public partial class KonumEkle : Form
     {
-        private float x;
-        private float y;
+        public float x;
+        public float y;
 
         public KonumEkle(float x, float y)
         {
@@ -30,17 +23,14 @@ namespace Cihaz_Takip_Uygulaması
         {
             Form frm = new Harita();
             frm.Close();
-            CihazEkle cihazEkleForm = new CihazEkle();
+            // Koordinatları CihazEklemeEkrani'ye gönder
+            CihazEklemeEkrani cihazEkleForm = new CihazEklemeEkrani(x, y);
             cihazEkleForm.Show();
             this.Close();
-            
         }
-
         private void button2_Click(object sender, EventArgs e)
         {
             this.Close();
-
         }
     }
-
 }

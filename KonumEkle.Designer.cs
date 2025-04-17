@@ -46,7 +46,7 @@
             this.btnCihazEkle.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnCihazEkle.Font = new System.Drawing.Font("Segoe UI", 10F);
             this.btnCihazEkle.ForeColor = System.Drawing.Color.White;
-            this.btnCihazEkle.Location = new System.Drawing.Point(37, 117);
+            this.btnCihazEkle.Location = new System.Drawing.Point(43, 117);
             this.btnCihazEkle.Name = "btnCihazEkle";
             this.btnCihazEkle.Size = new System.Drawing.Size(120, 40);
             this.btnCihazEkle.TabIndex = 1;
@@ -61,7 +61,7 @@
             this.btnIptal.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnIptal.Font = new System.Drawing.Font("Segoe UI", 10F);
             this.btnIptal.ForeColor = System.Drawing.Color.White;
-            this.btnIptal.Location = new System.Drawing.Point(176, 117);
+            this.btnIptal.Location = new System.Drawing.Point(191, 117);
             this.btnIptal.Name = "btnIptal";
             this.btnIptal.Size = new System.Drawing.Size(90, 40);
             this.btnIptal.TabIndex = 2;
