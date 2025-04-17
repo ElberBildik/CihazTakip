@@ -28,9 +28,12 @@ namespace Cihaz_Takip_Uygulaması
         }
         private void button1_Click(object sender, EventArgs e)
         {
+            Form frm = new Harita();
+            frm.Close();
             CihazEkle cihazEkleForm = new CihazEkle();
             cihazEkleForm.Show();
             this.Close();
+            
         }
 
         private void button2_Click(object sender, EventArgs e)

@@ -21,6 +21,7 @@ namespace Cihaz_Takip_Uygulaması
         private void CihazEkle_Load(object sender, EventArgs e)
         {
             CihazGrupListele();
+            this.TopMost = true;
         }
 
         private void CihazGrupListele()
@@ -33,11 +34,11 @@ namespace Cihaz_Takip_Uygulaması
                     SqlCommand cmd = new SqlCommand("SELECT Kod FROM CihazGrup", conn);
                     SqlDataReader reader = cmd.ExecuteReader();
 
-                    comboBox1.Items.Clear();
+                    kod.Items.Clear();
 
                     while (reader.Read())
                     {
-                        comboBox1.Items.Add(reader["Kod"].ToString());
+                        kod.Items.Add(reader["Kod"].ToString());
                     }
 
                     reader.Close();
@@ -51,11 +52,19 @@ namespace Cihaz_Takip_Uygulaması
 
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
-            string secilenKod = comboBox1.SelectedItem?.ToString();
-            if (!string.IsNullOrEmpty(secilenKod))
-            {
-                MessageBox.Show("Seçilen Grup Kodu: " + secilenKod);
-            }
+
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void CihazEkle_Load_1(object sender, EventArgs e)
+        {
+            // TODO: Bu kod satırı 'cihazTakipDataSet.CihazGrup' tablosuna veri yükler. Bunu gerektiği şekilde taşıyabilir, veya kaldırabilirsiniz.
+            this.cihazGrupTableAdapter.Fill(this.cihazTakipDataSet.CihazGrup);
+
         }
     }
 }

@@ -90,6 +90,11 @@
     <Compile Include="CihazEkle.Designer.cs">
       <DependentUpon>CihazEkle.cs</DependentUpon>
     </Compile>
+    <Compile Include="CihazTakipDataSet.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>CihazTakipDataSet.xsd</DependentUpon>
+    </Compile>
     <Compile Include="ConnectionString.cs" />
     <Compile Include="DBHelper.cs" />
     <Compile Include="Form1.cs">
@@ -137,6 +142,17 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+    <None Include="CihazTakipDataSet.xsc">
+      <DependentUpon>CihazTakipDataSet.xsd</DependentUpon>
+    </None>
+    <None Include="CihazTakipDataSet.xsd">
+      <Generator>MSDataSetGenerator</Generator>
+      <LastGenOutput>CihazTakipDataSet.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="CihazTakipDataSet.xss">
+      <DependentUpon>CihazTakipDataSet.xsd</DependentUpon>
+    </None>
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
