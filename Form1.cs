@@ -513,5 +513,6 @@ namespace Cihaz_Takip_Uygulaması
             Form haritaForm = new Harita();
             haritaForm.Show();
         }
+
     }
 }

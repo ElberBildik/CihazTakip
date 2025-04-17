@@ -413,9 +413,12 @@ namespace Cihaz_Takip_Uygulaması
             }
             else
             {
-                MessageBox.Show($"Tıklanan Nokta:\nX: {docX}, Y: {docY}", "Lokasyon");
+                // Tıklanan nokta hakkında bilgi verirken KonumEkle formunu aç
+                KonumEkle konumForm = new KonumEkle(docX, docY);
+                konumForm.ShowDialog();  // ShowDialog() penceresini modal açar, kullanıcı etkileşimini bekler
             }
         }
+
 
         private void UpdateZoomStatus()
         {
@@ -594,6 +597,11 @@ namespace Cihaz_Takip_Uygulaması
         {
             UpdateScrollBars();
             panel1.Invalidate();
+        }
+
+        private void Harita_Load_1(object sender, EventArgs e)
+        {
+
         }
     }
 }

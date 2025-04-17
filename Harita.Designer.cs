@@ -85,6 +85,7 @@ namespace Cihaz_Takip_Uygulaması
             this.Name = "Harita";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Harita";
+            this.Load += new System.EventHandler(this.Harita_Load_1);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.Harita_Paint);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
