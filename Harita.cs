@@ -35,7 +35,9 @@ namespace Cihaz_Takip_Uygulaması
         private Image backgroundImage = null;
         private Image originalBackgroundImage = null;
         private Size originalImageSize;
-        private Size virtualSize;
+
+        // Viewport takibi için eklenen değişkenler
+        private PointF viewportCenter;
 
         public Harita()
         {
@@ -44,7 +46,7 @@ namespace Cihaz_Takip_Uygulaması
 
             // AutoScroll özelliğini aktif et
             this.panel1.AutoScroll = true;
-
+        
             this.panel1.Paint += Harita_Paint;
             this.panel1.MouseClick += Harita_MouseClick;
 
@@ -62,8 +64,8 @@ namespace Cihaz_Takip_Uygulaması
                 originalBackgroundImage = Image.FromFile(imagePath);
                 originalImageSize = backgroundImage.Size;
 
-                // İlk açılışta virtual size'ı ayarla
-                UpdateVirtualSize();
+                // Başlangıçta viewport merkezini ayarla
+                viewportCenter = new PointF(panel1.Width / 2f, panel1.Height / 2f);
             }
             catch (Exception ex)
             {
@@ -77,98 +79,81 @@ namespace Cihaz_Takip_Uygulaması
             durumGuncellemeTimer.Tick += DurumGuncellemeTimer_Tick;
             durumGuncellemeTimer.Start();
 
-
             this.Resize += Harita_Resize;
 
+            // Başlangıçta biraz zoom yap
+            zoomFactor = 1.1f;
+            UpdateScrollBars();
 
-            this.BackgroundImageLayout = ImageLayout.Zoom;
+            // Zoom durumunu gösteren label ekle
+            Label lblZoomStatus = new Label();
+            lblZoomStatus.Name = "lblZoomStatus";
+            lblZoomStatus.Text = "Zoom: 110%";
+            lblZoomStatus.AutoSize = true;
+            lblZoomStatus.Location = new Point(10, 10); // Konumu ayarlayın
+            this.Controls.Add(lblZoomStatus);
         }
 
-
-        private void UpdateVirtualSize()
+        private void UpdateScrollBars()
         {
             if (backgroundImage != null)
             {
+                // Zoom'a bağlı olarak sanal boyutları hesapla
+                int virtualWidth = (int)(originalImageSize.Width * zoomFactor);
+                int virtualHeight = (int)(originalImageSize.Height * zoomFactor);
 
-                int virtualWidth = (int)(this.Width * zoomFactor);
-                int virtualHeight = (int)(this.Height * zoomFactor);
-                panel1.AutoScrollMinSize = new Size(virtualWidth, virtualHeight);
-                if (previousZoomFactor > 0 && previousZoomFactor != zoomFactor)
-                {
-                    float zoomRatio = zoomFactor / previousZoomFactor;
+                // Kaydırma çubuklarını sanal boyutlara göre ayarla
+                panel1.AutoScrollMinSize = new Size(Math.Max(virtualWidth, panel1.Width), Math.Max(virtualHeight, panel1.Height));
 
-                    Point currentPos = panel1.AutoScrollPosition;
-                    int newX = (int)((-currentPos.X) * zoomRatio);
-                    int newY = (int)((-currentPos.Y) * zoomRatio);
-
-                    panel1.AutoScrollPosition = new Point(newX, newY);
-                }
-
-                virtualSize = new Size(virtualWidth, virtualHeight);
+                // Scrollbar'ların hemen görünmesi için
+                panel1.PerformLayout();
             }
         }
 
         private void Panel1_MouseWheel(object sender, MouseEventArgs e)
         {
-            // Fare tekerleği ile zoom yapma
             float oldZoom = zoomFactor;
 
-            // Mevcut scroll konumunu al ve pozitif değerlere çevir
-            Point scrollPos = panel1.AutoScrollPosition;
-            scrollPos.X = -scrollPos.X; // Negatif değerleri pozitife çevir
-            scrollPos.Y = -scrollPos.Y;
-
-            // Fare imlecinin içerik (belge) üzerindeki gerçek pozisyonunu hesapla
-            PointF docPoint = new PointF(
+            // Scroll pozisyonu ve fare konumunu belge (sanal) koordinatlarına dönüştür
+            Point scrollPos = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
+            PointF mouseDocPos = new PointF(
                 (e.Location.X + scrollPos.X) / oldZoom,
                 (e.Location.Y + scrollPos.Y) / oldZoom
             );
 
-            // Zoom yönü
-            if (e.Delta > 0)
+            // Zoom yönünü belirle
+            if (e.Delta > 0 && zoomFactor < maxZoom)
             {
-                if (zoomFactor < maxZoom)
-                {
-                    previousZoomFactor = zoomFactor;
-                    zoomFactor += zoomIncrement;
-                }
+                zoomFactor += zoomIncrement;
+            }
+            else if (e.Delta < 0 && zoomFactor > minZoom)
+            {
+                zoomFactor -= zoomIncrement;
             }
             else
             {
-                if (zoomFactor > minZoom)
-                {
-                    previousZoomFactor = zoomFactor;
-                    zoomFactor -= zoomIncrement;
-                }
+                return; // Zoom sınırlarında değişiklik olmadı
             }
 
-            // Zoom değiştiyse, farenin aynı pozisyonda kalması için scroll pozisyonunu ayarla
-            if (oldZoom != zoomFactor)
-            {
-                // Yeni zoom faktörü için sanal boyutu ayarla
-                UpdateVirtualSize();
+            // Yeni sanal pozisyonları hesapla
+            PointF newScrollPos = new PointF(
+                mouseDocPos.X * zoomFactor - e.Location.X,
+                mouseDocPos.Y * zoomFactor - e.Location.Y
+            );
 
-                // Zoom sonrası fare imlecinin belge üzerindeki yeni pozisyonunu hesapla
-                PointF newDocPoint = new PointF(
-                    docPoint.X * zoomFactor,
-                    docPoint.Y * zoomFactor
-                );
+            // Kaydırma çubuklarını güncelle
+            UpdateScrollBars();
 
-                // Yeni scroll pozisyonunu hesapla
-                Point newScrollPos = new Point(
-                    (int)(newDocPoint.X - e.Location.X),
-                    (int)(newDocPoint.Y - e.Location.Y)
-                );
+            // Yeni kaydırma pozisyonunu uygula (negative değer olmamalı)
+            panel1.AutoScrollPosition = new Point(
+                Math.Max((int)newScrollPos.X, 0),
+                Math.Max((int)newScrollPos.Y, 0)
+            );
 
-                // Yeni scroll pozisyonunu uygula
-                panel1.AutoScrollPosition = newScrollPos;
-
-                // Zoom durumunu güncelle ve yeniden çizimi tetikle
-                UpdateZoomStatus();
-                panel1.Invalidate();
-            }
+            // Zoom durumunu güncelle ve yeniden çiz
+            UpdateZoomStatus();
+            panel1.Invalidate();
         }
-
 
         private void Panel1_MouseDown(object sender, MouseEventArgs e)
         {
@@ -183,31 +168,28 @@ namespace Cihaz_Takip_Uygulaması
 
         private void Panel1_MouseMove(object sender, MouseEventArgs e)
         {
+            if (this.Controls["lblZoomStatus"] is Label lblZoom)
+            {
+                // lblZoom'u fare pozisyonuna taşır
+                lblZoom.Location = new Point(e.X + 10, e.Y + 10); // Fare konumuna göre ayarla
+            }
+
             if (isPanning)
             {
-                // Ne kadar kaydırılacağını hesapla
+                // Pan işlemi sırasında kaydırma yap
                 int deltaX = lastPanPoint.X - e.X;
                 int deltaY = lastPanPoint.Y - e.Y;
 
-                // Mevcut scroll pozisyonunu al (AutoScrollPosition değerleri negatiftir)
-                Point currentPos = panel1.AutoScrollPosition;
-                currentPos.X = -currentPos.X; // Pozitife çevir
-                currentPos.Y = -currentPos.Y; // Pozitife çevir
-
-                // Yeni scroll pozisyonunu hesapla
+                Point currentPos = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
                 Point newPos = new Point(
                     currentPos.X + deltaX,
                     currentPos.Y + deltaY
                 );
 
-                // Yeni scroll pozisyonunu ayarla
                 panel1.AutoScrollPosition = newPos;
-
-                // Son pan noktasını güncelle
                 lastPanPoint = e.Location;
             }
         }
-
         private void Panel1_MouseUp(object sender, MouseEventArgs e)
         {
             // Pan'ı durdur
@@ -218,7 +200,6 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
-
         private void Harita_Paint(object sender, PaintEventArgs e)
         {
             g = e.Graphics;
@@ -227,15 +208,22 @@ namespace Cihaz_Takip_Uygulaması
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
+            // Transformasyon matrixi ayarla
             Matrix transformMatrix = new Matrix();
-            Point scrollPos = panel1.AutoScrollPosition;
+
+            // Panel'in scrollbar pozisyonunu al
+            Point scrollPos = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
+
+            // Önce scroll pozisyonunu uygula, sonra zoom faktörünü
             transformMatrix.Translate(-scrollPos.X, -scrollPos.Y);
             transformMatrix.Scale(zoomFactor, zoomFactor);
+
             g.Transform = transformMatrix;
+
 
             if (backgroundImage != null)
             {
-                g.DrawImage(backgroundImage, 0, 0, this.Width, this.Height);
+                g.DrawImage(backgroundImage, new Rectangle(0, 0, this.Width, this.Height), 0, 0, originalImageSize.Width, originalImageSize.Height, GraphicsUnit.Pixel);
             }
 
             DrawConnections();
@@ -275,7 +263,6 @@ namespace Cihaz_Takip_Uygulaması
                     {
                         imageGraphics.DrawImage(cihazImage, 0, 0, cihazImage.Width, cihazImage.Height);
 
-                        // PNG'nin üzerine yarı saydam renk maskesi uygula
                         using (Brush overlay = new SolidBrush(tintColor))
                         {
                             imageGraphics.FillRectangle(overlay, 0, 0, coloredImage.Width, coloredImage.Height);
@@ -300,27 +287,25 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
-
-
         private bool IsAllowedDeviceType(string grupKod)
         {
             // İzin verilen grup kodlarını kontrol et
             string[] allowedDeviceTypes = {
-        "KGS", "Yazıcı", "Kamera", "Data Switch", "Enerji panosu", "Bilgisayarlar", "PLC", "Kamera Switch"
-    };
+                "KGS", "Yazıcı", "Kamera", "Data Switch", "Enerji panosu", "Bilgisayarlar", "PLC", "Kamera Switch"
+            };
             return allowedDeviceTypes.Any(type => string.Equals(type, grupKod, StringComparison.OrdinalIgnoreCase));
         }
 
         private string GetPngFilePath(string grupKod)
         {
-            string basePath = @"C:\Users\ebildik\Desktop\PNG"; // PNG dosyalarının bulunduğu dizin
+            string basePath = @"C:\Users\ebildik\Desktop\PNG"; // PNG dosyalarının bulunduğu dizin proje kodlarının içine koymayı unutma 
             string fileName = $"{grupKod}.png"; // Örnek: "Kamera.png" veya "EnerjiPano.png"
             return Path.Combine(basePath, fileName);
         }
 
         private void DrawConnections()
         {
-            // Çizgi çizme mantığını buraya taşıdık (mevcut kodda varsa)
+
             if (enerjiPanolariniGoster)
             {
                 foreach (var cihaz in cihazlar)
@@ -396,13 +381,11 @@ namespace Cihaz_Takip_Uygulaması
 
         private void Harita_MouseClick(object sender, MouseEventArgs e)
         {
-            // Convert screen coordinates to document coordinates
-            Point scrollPos = panel1.AutoScrollPosition;
-            // Note: AutoScrollPosition returns negative values
-            float docX = (e.X - scrollPos.X) / zoomFactor;
-            float docY = (e.Y - scrollPos.Y) / zoomFactor;
+            // Mouse'un belge üzerindeki gerçek pozisyonunu hesapla
+            Point scrollPos = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
+            float docX = (e.X + scrollPos.X) / zoomFactor;
+            float docY = (e.Y + scrollPos.Y) / zoomFactor;
 
-            // For debugging
             Console.WriteLine($"Click at screen: {e.X},{e.Y}, doc: {docX},{docY}");
 
             CihazBilgi enYakinCihaz = null;
@@ -410,13 +393,11 @@ namespace Cihaz_Takip_Uygulaması
 
             foreach (var cihaz in cihazlar)
             {
-                // Calculate distance to device center
                 double dx = docX - cihaz.X;
                 double dy = docY - cihaz.Y;
                 double distance = Math.Sqrt(dx * dx + dy * dy);
 
-                // Increase detection radius to make clicking easier
-                float clickRadius = pointRadius + 12; // Increased from 5 to 12
+                float clickRadius = pointRadius + 12;
 
                 if (distance <= clickRadius && distance < enKucukMesafe)
                 {
@@ -432,43 +413,7 @@ namespace Cihaz_Takip_Uygulaması
             }
             else
             {
-                Console.WriteLine("No device found near click point");
-                // Optional: Display coordinates for debugging
                 MessageBox.Show($"Tıklanan Nokta:\nX: {docX}, Y: {docY}", "Lokasyon");
-            }
-        }
-
-        // Arka plan resmi ayarlamak için metod
-        public void SetBackgroundImage(string imagePath)
-        {
-            try
-            {
-                if (System.IO.File.Exists(imagePath))
-                {
-                    if (backgroundImage != null)
-                    {
-                        backgroundImage.Dispose(); // Önceki resmi temizle
-                    }
-
-                    backgroundImage = Image.FromFile(imagePath);
-                    originalBackgroundImage = Image.FromFile(imagePath); // Orijinal resmi sakla
-                    originalImageSize = backgroundImage.Size; // Orijinal boyutları sakla
-
-                    // Resim değiştiğinde virtual size'ı güncelle
-                    UpdateVirtualSize();
-
-                    panel1.Invalidate();
-                }
-                else
-                {
-                    MessageBox.Show("Belirtilen arka plan resmi bulunamadı: " + imagePath,
-                        "Resim Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Arka plan resmi yüklenirken hata oluştu: " + ex.Message,
-                    "Resim Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -636,8 +581,9 @@ namespace Cihaz_Takip_Uygulaması
 
         private void DownCihazlar_CheckedChanged_1(object sender, EventArgs e)
         {
-            //panel1.Controls.Clear();
+            // İşlem eklenecek
         }
+
         private void CizgiKaldirChckBox_CheckedChanged_1(object sender, EventArgs e)
         {
             cizgileriGoster = !CizgiKaldirChckBox.Checked;
@@ -646,8 +592,8 @@ namespace Cihaz_Takip_Uygulaması
 
         private void Harita_Resize(object sender, EventArgs e)
         {
-            panel1.Invalidate(); // Yeniden çizimi tetikle
+            UpdateScrollBars();
+            panel1.Invalidate();
         }
-
     }
 }
