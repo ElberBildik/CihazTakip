@@ -12,28 +12,35 @@ namespace Cihaz_Takip_Uygulaması
     {
         private Timer _pingTimer;
         private DataTable _downCihazlarTable;
-        private Dictionary<int, Timer> _downCihazTimers = new Dictionary<int, Timer>();
-        private Dictionary<int, string> _cihazDurumlari = new Dictionary<int, string>();
+        private readonly Dictionary<int, Timer> _downCihazTimers;
+        private readonly Dictionary<int, string> _cihazDurumlari;
+        private const int PING_INTERVAL = 1000; // 1 saniye
+        private const int PING_TIMEOUT = 1000; // 1 saniye
 
         public Form1()
         {
             InitializeComponent();
+            _downCihazTimers = new Dictionary<int, Timer>();
+            _cihazDurumlari = new Dictionary<int, string>();
             InitializeDownCihazlarGrid();
-            LoadDeviceData();
             InitializePingTimer();
+            LoadDeviceData();
         }
 
         private void InitializeDownCihazlarGrid()
         {
             _downCihazlarTable = new DataTable();
-            _downCihazlarTable.Columns.Add("RecNo", typeof(int));
-            _downCihazlarTable.Columns.Add("GrupRecNo", typeof(int));
-            _downCihazlarTable.Columns.Add("IPNo", typeof(string));
-            _downCihazlarTable.Columns.Add("Aciklama", typeof(string));
-            _downCihazlarTable.Columns.Add("DownZamani", typeof(DateTime));
-            _downCihazlarTable.Columns.Add("BeklemeSuresi", typeof(int));
-            _downCihazlarTable.Columns.Add("KalanSure", typeof(string));
-            _downCihazlarTable.Columns.Add("Durum", typeof(string));
+            _downCihazlarTable.Columns.AddRange(new[]
+            {
+                new DataColumn("RecNo", typeof(int)),
+                new DataColumn("GrupRecNo", typeof(int)),
+                new DataColumn("IPNo", typeof(string)),
+                new DataColumn("Aciklama", typeof(string)),
+                new DataColumn("DownZamani", typeof(DateTime)),
+                new DataColumn("BeklemeSuresi", typeof(int)),
+                new DataColumn("KalanSure", typeof(string)),
+                new DataColumn("Durum", typeof(string))
+            });
 
             downCihazlar.DataSource = _downCihazlarTable;
             ConfigureDownCihazlarGridView();
@@ -52,56 +59,82 @@ namespace Cihaz_Takip_Uygulaması
 
         private void InitializePingTimer()
         {
-            _pingTimer = new Timer
-            {
-                Interval = 1000 // 1 saniyede bir kontrol
-            };
-            _pingTimer.Tick += PingTimer_Tick;
+            _pingTimer = new Timer { Interval = PING_INTERVAL };
+            _pingTimer.Tick += async (sender, e) => await PingTimer_Tick(sender, e);
         }
 
-        private async void PingTimer_Tick(object sender, EventArgs e)
+        private async Task PingTimer_Tick(object sender, EventArgs e)
         {
-            MesajlarRchTxt.Clear();
-            var tasks = new List<Task>();
-
-            foreach (DataGridViewRow row in Cihazlar.Rows)
+            try
             {
-                tasks.Add(ProcessDeviceRowAsync(row));
+                MesajlarRchTxt.Clear();
+                var tasks = new List<Task>();
+
+                foreach (DataGridViewRow row in Cihazlar.Rows)
+                {
+                    tasks.Add(ProcessDeviceRowAsync(row));
+                }
+
+                await Task.WhenAll(tasks);
+
+                await UpdateUIAsync();
             }
-
-            await Task.WhenAll(tasks);
-
-            Invoke(new Action(() =>
+            catch (Exception ex)
             {
-                Cihazlar.Refresh();
-                HücreRenkleme.DurumRenklendir(Cihazlar);
-                UpdateDownDevicesRemainingTime();
-            }));
+                LogMessage($"[{DateTime.Now:HH:mm:ss}] Hata: {ex.Message}", Color.Red);
+            }
+        }
+
+        private async Task UpdateUIAsync()
+        {
+            await Task.Run(() =>
+            {
+                Invoke(new Action(() =>
+                {
+                    Cihazlar.Refresh();
+                    HücreRenkleme.DurumRenklendir(Cihazlar);
+                    UpdateDownDevicesRemainingTime();
+                }));
+            });
         }
 
         private async Task ProcessDeviceRowAsync(DataGridViewRow row)
         {
             try
             {
-                string durum = row.Cells["Durum"].Value?.ToString();
-                if (durum == null)
-                    return;
+                if (row.Cells["Durum"].Value == null) return;
 
                 int cihazRecNo = Convert.ToInt32(row.Cells["RecNo"].Value);
                 int cihazGrupRecNo = Convert.ToInt32(row.Cells["GrupRecNo"].Value);
                 string ip = row.Cells["IPNo"].Value?.ToString();
                 string aciklama = row.Cells["Aciklama"].Value?.ToString();
 
-                Invoke(new Action(() => row.DefaultCellStyle.BackColor = Color.Yellow));
+                await Task.Run(() => Invoke(new Action(() => row.DefaultCellStyle.BackColor = Color.Yellow)));
 
                 bool pingResult = await SendPingAsync(ip);
                 await UpdateDeviceStatusAsync(row, cihazRecNo, cihazGrupRecNo, ip, aciklama, pingResult);
             }
             catch (Exception ex)
             {
-                Invoke(new Action(() =>
+                await Task.Run(() => Invoke(new Action(() =>
                     LogMessage($"[{DateTime.Now:HH:mm:ss}] Hata: {ex.Message}", Color.Red)
-                ));
+                )));
+            }
+        }
+
+        private async Task<bool> SendPingAsync(string ip)
+        {
+            try
+            {
+                using (Ping ping = new Ping())
+                {
+                    PingReply reply = await ping.SendPingAsync(ip, PING_TIMEOUT);
+                    return reply.Status == IPStatus.Success;
+                }
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -120,13 +153,16 @@ namespace Cihaz_Takip_Uygulaması
 
         private async Task HandleDeviceOnlineAsync(DataGridViewRow row, int cihazRecNo, string ip)
         {
-            Invoke(new Action(() =>
+            await Task.Run(() =>
             {
-                row.Cells["Durum"].Value = "UP";
-                row.DefaultCellStyle.BackColor = Color.Green;
-                LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Up durumunda.", Color.Green);
-                RemoveFromDownDevices(cihazRecNo);
-            }));
+                Invoke(new Action(() =>
+                {
+                    row.Cells["Durum"].Value = "UP";
+                    row.DefaultCellStyle.BackColor = Color.Green;
+                    LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Up durumunda.", Color.Green);
+                    RemoveFromDownDevices(cihazRecNo);
+                }));
+            });
 
             await Task.Run(() => DBHelper.GuncelleDurum(cihazRecNo, "UP"));
         }
@@ -134,13 +170,16 @@ namespace Cihaz_Takip_Uygulaması
         private async Task HandleDeviceOfflineAsync(DataGridViewRow row, int cihazRecNo,
             int cihazGrupRecNo, string ip, string aciklama)
         {
-            Invoke(new Action(() =>
+            await Task.Run(() =>
             {
-                row.Cells["Durum"].Value = "Down oldu, mail atılacak";
-                row.DefaultCellStyle.BackColor = Color.Red;
-                LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu.", Color.Red);
-                AddToDownDevices(cihazRecNo, cihazGrupRecNo, ip, aciklama);
-            }));
+                Invoke(new Action(() =>
+                {
+                    row.Cells["Durum"].Value = "Down oldu, mail atılacak";
+                    row.DefaultCellStyle.BackColor = Color.Red;
+                    LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu.", Color.Red);
+                    AddToDownDevices(cihazRecNo, cihazGrupRecNo, ip, aciklama);
+                }));
+            });
 
             await Task.Run(() =>
             {
@@ -289,7 +328,7 @@ namespace Cihaz_Takip_Uygulaması
             downCihazlar.Refresh();
         }
 
-        private void RemoveFromDownDevices(int cihazRecNo)
+        private void RemoveFromDownDevices(int cihazRecNo)//cihaz downdan up a geçerse listeden çıkartacağız
         {
             DataRow rowToDelete = null;
             foreach (DataRow row in _downCihazlarTable.Rows)
@@ -317,22 +356,6 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
-        private async Task<bool> SendPingAsync(string ip)
-        {
-            try
-            {
-                using (Ping ping = new Ping())
-                {
-                    PingReply reply = await ping.SendPingAsync(ip, 1000);
-                    return reply.Status == IPStatus.Success;
-                }
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private async void PingAtBtn_Click_1(object sender, EventArgs e)
         {
             _pingTimer.Start();
@@ -355,13 +378,6 @@ namespace Cihaz_Takip_Uygulaması
 
             _pingTimer.Start();
         }
-
-        private void StopPingBtn_Click(object sender, EventArgs e)
-        {
-            _pingTimer.Stop();
-            LogMessage("Ping işlemi durduruldu.", Color.Blue);
-        }
-
         private void LoadDeviceData()
         {
             try
@@ -387,29 +403,44 @@ namespace Cihaz_Takip_Uygulaması
             HücreRenkleme.DurumRenklendir(Cihazlar);
         }
 
-        private void PingIptalBtn_Click_1(object sender, EventArgs e)
+        private void PingIptalBtn_Click_1(object sender, EventArgs e) // ping atmayı durduran buton
         {
-            DialogResult result = MessageBox.Show(
-                "Ping atma işlemini durdurmak istiyor musunuz?",
-                "İşlem İptali",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-
-            if (result == DialogResult.Yes)
+            // Öncelikle ping timer'ın çalışıp çalışmadığını kontrol edelim
+            if (_pingTimer.Enabled)
             {
-                _pingTimer.Stop();
-                LogMessage("Ping işlemi durduruldu.", Color.Blue);
+                DialogResult result = MessageBox.Show(
+                    "Ping atma işlemini durdurmak istiyor musunuz?",
+                    "İşlem İptali",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
 
-                foreach (var timer in _downCihazTimers.Values)
+                if (result == DialogResult.Yes)
                 {
-                    timer.Stop();
-                }
+                    _pingTimer.Stop();
+                    LogMessage("Ping işlemi durduruldu.", Color.Blue);
 
-                LogMessage("Tüm geri sayım işlemleri durduruldu.", Color.Blue);
+                    foreach (var timer in _downCihazTimers.Values)
+                    {
+                        timer.Stop();
+                    }
+
+                    LogMessage("Tüm geri sayım işlemleri durduruldu.", Color.Blue);
+                }
+                else
+                {
+                    LogMessage("Ping işlemi devam ediyor.", Color.Green);
+                }
             }
             else
             {
-                LogMessage("Ping işlemi devam ediyor.", Color.Green);
+                // Ping işlemi zaten çalışmıyor, kullanıcıya bilgi verelim
+                MessageBox.Show(
+                    "Ping atma işlemi henüz başlatılmamış.",
+                    "Bilgi",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                LogMessage("Ping atma işlemi başlatılmamış.", Color.Orange);
             }
         }
 
@@ -429,6 +460,12 @@ namespace Cihaz_Takip_Uygulaması
 
         private void LogMessage(string text, Color color)
         {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => LogMessage(text, color)));
+                return;
+            }
+
             MesajlarRchTxt.SelectionStart = MesajlarRchTxt.TextLength;
             MesajlarRchTxt.SelectionLength = 0;
             MesajlarRchTxt.SelectionColor = color;
@@ -439,13 +476,18 @@ namespace Cihaz_Takip_Uygulaması
 
         private void AddNotification(string text)
         {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => AddNotification(text)));
+                return;
+            }
+
             rchTextBildirimler.SelectionStart = rchTextBildirimler.TextLength;
             rchTextBildirimler.SelectionLength = 0;
             rchTextBildirimler.SelectionColor = Color.Orange;
             rchTextBildirimler.AppendText(text + Environment.NewLine);
             rchTextBildirimler.SelectionColor = rchTextBildirimler.ForeColor;
             rchTextBildirimler.ScrollToCaret();
-            
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -496,23 +538,14 @@ namespace Cihaz_Takip_Uygulaması
             }
         }
 
-        private void downCihazlar_CellClick(object sender, DataGridViewCellEventArgs e)
-        {
-            if (e.RowIndex >= 0)
-            {
-                int recNo = Convert.ToInt32(downCihazlar.Rows[e.RowIndex].Cells["RecNo"].Value);
-                string ip = downCihazlar.Rows[e.RowIndex].Cells["IPNo"].Value.ToString();
-                string durum = downCihazlar.Rows[e.RowIndex].Cells["Durum"].Value.ToString();
-
-                LogMessage($"[{DateTime.Now:HH:mm:ss}] Seçilen down cihaz: {ip}, Durum: {durum}", Color.Blue);
-            }
-        }
-
         private void button1_Click(object sender, EventArgs e)
         {
             Form haritaForm = new Harita();
             haritaForm.Show();
         }
+        
+
+        
 
     }
 }
