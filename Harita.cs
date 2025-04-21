@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Drawing;
@@ -12,29 +12,43 @@ namespace Cihaz_Takip_Uygulaması
 {
     public partial class Harita : Form
     {
+        private List<CihazBilgi> tumCihazlar = new List<CihazBilgi>();
         private List<CihazBilgi> cihazlar = new List<CihazBilgi>();
         private int pointRadius = 8;
         private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
         private Timer durumGuncellemeTimer;
-
         private bool cizgileriGoster = true;
         private bool enerjiPanolariniGoster = true;
         private bool clientleriGoster = true;
-        //private bool downDurumuGoster = true;
-
         private float zoomFactor = 1.0f;
         private const float zoomIncrement = 0.1f;
         private const float minZoom = 0.5f;
-        private const float maxZoom = 3.0f;
+        private const float maxZoom = 4.0f;
         private Image backgroundImage;
         private Size originalImageSize;
-
-
         private bool isPanning = false;
         private Point panStartMouse;
         private Point panStartScroll;
         private bool ctrlPressed = false;
-
+        private ContextMenuStrip haritaMenu;
+        private ToolStripMenuItem menuZoom;
+        private ToolStripMenuItem menuKGS;
+        private ToolStripMenuItem menuYazici;
+        private ToolStripMenuItem menuEnerjiPanosu;
+        private ToolStripMenuItem menuCizgiGoster;
+        private ToolStripMenuItem menuZoomFormat;
+        private ToolStripMenuItem menuZoom120;
+        private ToolStripMenuItem menuZoom140;
+        private ToolStripMenuItem menuZoom160;
+        private ToolStripMenuItem menuZoom180;
+        private ToolStripMenuItem menuZoom200;
+        private ToolStripMenuItem menuZoom300;
+        private ToolStripMenuItem menuZoom400;
+        private ToolStripMenuItem menuSwitchGöster;
+        private ToolStripMenuItem menuPLC;
+        private ToolStripMenuItem menuBilgisayar;
+        private ToolStripMenuItem menuDownCihazlar;
+        
         public Harita()
         {
             InitializeComponent();
@@ -53,12 +67,71 @@ namespace Cihaz_Takip_Uygulaması
             this.KeyDown += Harita_KeyDown;
             this.KeyUp += Harita_KeyUp;
 
+            // Menü Kurulumu
+            haritaMenu = new ContextMenuStrip();
+            menuZoom = new ToolStripMenuItem("Yakınlaştır");
+            menuZoomFormat = new ToolStripMenuItem("Varsayılan", null, (s, e) => SetZoom(1f));
+            menuZoom120 = new ToolStripMenuItem("%120", null, (s, e) => SetZoom(1.2f));
+            menuZoom140 = new ToolStripMenuItem("%140", null, (s, e) => SetZoom(1.4f));
+            menuZoom160 = new ToolStripMenuItem("%160", null, (s, e) => SetZoom(1.6f));
+            menuZoom180 = new ToolStripMenuItem("%180", null, (s, e) => SetZoom(1.8f));
+            menuZoom200 = new ToolStripMenuItem("%200", null, (s, e) => SetZoom(2.0f));
+            menuZoom300 = new ToolStripMenuItem("%300", null, (s, e) => SetZoom(3.0f));
+            menuZoom400 = new ToolStripMenuItem("%400", null, (s, e) => SetZoom(4.0f));
+            menuZoom.DropDownItems.AddRange(new ToolStripItem[] {
+                menuZoomFormat, menuZoom120, menuZoom140, menuZoom160, menuZoom180, menuZoom200, menuZoom300, menuZoom400
+            });
+
+            menuCizgiGoster = new ToolStripMenuItem("Çizgileri Göster", null, MenuCizgiGoster_Click)
+            {
+                Checked = cizgileriGoster,
+                CheckOnClick = true
+            };
+
+            menuKGS = new ToolStripMenuItem("KGS Cihazlarını Göster", null, MenuKGS_Click)
+            {
+                Checked = false,
+                CheckOnClick = true
+            };
+            menuYazici = new ToolStripMenuItem("Yazıcıları Göster", null, MenuYazici_Click)
+            {
+                Checked = false,
+                CheckOnClick = true
+            };
+            menuEnerjiPanosu = new ToolStripMenuItem("Enerji Panolarını Göster", null, menuEnerjiPanosu_Click)
+            {
+                Checked=false,
+                CheckOnClick=true
+            };
+            menuSwitchGöster = new ToolStripMenuItem("Data Switchleri Göster", null, menuSwitchGöster_Click)
+            {
+                Checked=false,
+                CheckOnClick=true
+            };
+            menuPLC = new ToolStripMenuItem("PLC'leri Göster", null, menuPLC_Click)
+            {
+                Checked = false,
+                CheckOnClick=true
+            };
+            menuBilgisayar = new ToolStripMenuItem("Bilgisayarları Göster", null, menuBilgisayar_Click)
+            {
+                Checked=false,
+                CheckOnClick=true
+            };
+            menuDownCihazlar = new ToolStripMenuItem("Down Cihazları Göster", null, menuDownCihazlar_Click)
+            {
+                Checked=false,
+                CheckOnClick=true
+            };
+
+            haritaMenu.Items.AddRange(new ToolStripItem[] { menuZoom, menuCizgiGoster, menuKGS, menuYazici, menuEnerjiPanosu, menuSwitchGöster,menuPLC,menuBilgisayar,menuDownCihazlar });
+
             string imagePath = @"C:\Users\ebildik\Desktop\Genel Layout.PNG";
             try
             {
                 backgroundImage = Image.FromFile(imagePath);
                 originalImageSize = backgroundImage.Size;
-                panel1.AutoScrollMinSize = originalImageSize; // Başlangıç kaydırma alanı
+                panel1.AutoScrollMinSize = originalImageSize;
             }
             catch (Exception ex)
             {
@@ -71,41 +144,134 @@ namespace Cihaz_Takip_Uygulaması
             durumGuncellemeTimer.Tick += (s, e) => VeritabanindanCihazlariYukle();
             durumGuncellemeTimer.Start();
         }
-        private void CihazaZoomYap(CihazBilgi cihaz, float hedefZoomFaktor)
+
+        private void menuDownCihazlar_Click(object sender, EventArgs e)
         {
-            if (cihaz == null) return;
+            if (menuDownCihazlar.Checked)
+            {
+                cihazlar = tumCihazlar
+                    .Where(c => !string.IsNullOrEmpty(c.Durum) &&
+                                c.Durum.IndexOf("Down", StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
+                panel1.Invalidate();
+            }
+            else
+            {
+                cihazlar = new List<CihazBilgi>(tumCihazlar);
+            }
+            panel1.Invalidate();
+        }
 
-            // Zoom faktörünü güncelle (sınırlar içinde)
-            float yeniZoom = Math.Min(Math.Max(hedefZoomFaktor, minZoom), maxZoom);
-            float eskiZoom = zoomFactor;
-            zoomFactor = yeniZoom;
+        private void menuPLC_Click(object sender,EventArgs e)
+        {
+            if(menuPLC.Checked)
+            {
+                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("PLC", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            else
+            {
+                cihazlar = new List<CihazBilgi>(tumCihazlar);
+            }
+            panel1.Invalidate();
+        }
+        private void Panel1_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                menuCizgiGoster.Checked = cizgileriGoster;
+                haritaMenu.Show(panel1, e.Location);
+            }
 
-            // Cihazın belge koordinatları
-            float cihazDocX = cihaz.X;
-            float cihazDocY = cihaz.Y;
+            if (isPanning)
+            {
+                isPanning = false;
+                panel1.Cursor = Cursors.Default;
+            }
+        }
+        private void menuSwitchGöster_Click(object sender,EventArgs e)
+        {
+            if(menuSwitchGöster.Checked)
+            {
+                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Data Switch", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            else
+            {
+                cihazlar = new List<CihazBilgi>(tumCihazlar);
+            }
+            panel1.Invalidate();
+        }
+        private void menuBilgisayar_Click(object sender,EventArgs e)
+        {
+            if(menuBilgisayar.Checked)
+            {
+                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Bilgisayarlar", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            else
+            {
+                cihazlar = new List<CihazBilgi>(tumCihazlar);
+            }
+            panel1.Invalidate();
+        }
 
-            // Yeni zoom ile cihazın ekran koordinatlarını hesapla
-            int yeniCihazEkranX = (int)(cihazDocX * zoomFactor);
-            int yeniCihazEkranY = (int)(cihazDocY * zoomFactor);
+        private void menuEnerjiPanosu_Click(object sender, EventArgs e)
+        {
+            if (menuEnerjiPanosu.Checked)
+            {
 
-            // Panel merkezine göre scroll pozisyonunu hesapla
-            int panelMerkezX = panel1.ClientSize.Width / 2;
-            int panelMerkezY = panel1.ClientSize.Height / 2;
+                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Enerji panosu", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            else
+            {
 
-            int yeniScrollX = yeniCihazEkranX - panelMerkezX;
-            int yeniScrollY = yeniCihazEkranY - panelMerkezY;
+                cihazlar = new List<CihazBilgi>(tumCihazlar);
+            }
+            panel1.Invalidate();
+        }
+        private void MenuCizgiGoster_Click(object sender, EventArgs e)
+        {
+            cizgileriGoster = menuCizgiGoster.Checked;
+            panel1.Invalidate();
+        }
+        private void MenuKGS_Click(object sender, EventArgs e)
+        {
+            if (menuKGS.Checked)
+            {
+                menuYazici.Checked = false;
+                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("KGS", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            else
+            {
+                cihazlar = new List<CihazBilgi>(tumCihazlar);
+            }
+            panel1.Invalidate();
+        }
 
-            // Kaydırma alanını güncelle
+        private void MenuYazici_Click(object sender, EventArgs e)
+        {
+            if (menuYazici.Checked)
+            {
+                menuKGS.Checked = false;
+                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Yazıcı", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            else
+            {
+                cihazlar = new List<CihazBilgi>(tumCihazlar);
+            }
+            panel1.Invalidate();
+        }
+
+        private void SetZoom(float factor)
+        {
+            zoomFactor = Math.Min(Math.Max(factor, minZoom), maxZoom);
+
             int genislik = Math.Max((int)(originalImageSize.Width * zoomFactor), panel1.ClientSize.Width + 1);
             int yukseklik = Math.Max((int)(originalImageSize.Height * zoomFactor), panel1.ClientSize.Height + 1);
             panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
 
-            // Yeni scroll pozisyonunu uygula
-            panel1.AutoScrollPosition = new Point(yeniScrollX, yeniScrollY);
-
-            // Haritayı yeniden çiz
+            panel1.AutoScrollPosition = new Point(0, 0);//burası mouse'ın konumu olacak 
             panel1.Invalidate();
         }
+
         private void Harita_Paint(object sender, PaintEventArgs e)
         {
             var g = e.Graphics;
@@ -149,12 +315,12 @@ namespace Cihaz_Takip_Uygulaması
                                  cihaz.Durum.IndexOf("Down", StringComparison.OrdinalIgnoreCase) >= 0)
                             tintColor = Color.FromArgb(170, Color.Red);
                         else
-                            tintColor = Color.FromArgb(170, Color.Gray);
+                            tintColor = Color.FromArgb(170, Color.BlueViolet);
 
                         using (Brush overlay = new SolidBrush(tintColor))
                             imageGraphics.FillRectangle(overlay, 0, 0, coloredImage.Width, coloredImage.Height);
 
-                        float iconSize = 32;
+                        float iconSize = 8;
                         RectangleF cihazRect = new RectangleF(
                             cihaz.X - iconSize / 2,
                             cihaz.Y - iconSize / 2,
@@ -166,42 +332,6 @@ namespace Cihaz_Takip_Uygulaması
                 }
             }
         }
-
-        // --- Cihazı ekrana getir ---
-        private void CihaziGorunecekSekildeKaydir(CihazBilgi cihaz)
-        {
-            if (cihaz == null) return;
-            // Cihazın ekrandaki konumunu bul
-            int hedefX = (int)(cihaz.X * zoomFactor);
-            int hedefY = (int)(cihaz.Y * zoomFactor);
-
-            // Panelde görünür alanın üst sol köşesi
-            int scrollX = -panel1.AutoScrollPosition.X;
-            int scrollY = -panel1.AutoScrollPosition.Y;
-
-            // Panelin görünür boyutu
-            int panelGenislik = panel1.ClientSize.Width;
-            int panelYukseklik = panel1.ClientSize.Height;
-            float iconSize = 32 * zoomFactor;
-
-            // Şekil ekrandan çıkmış mı?
-            bool disarda = hedefX + iconSize < scrollX || hedefX > scrollX + panelGenislik ||
-                           hedefY + iconSize < scrollY || hedefY > scrollY + panelYukseklik;
-
-            if (disarda)
-            {
-                // Ortalamak için
-                int yeniScrollX = (int)(hedefX - (panelGenislik - iconSize) / 2);
-                int yeniScrollY = (int)(hedefY - (panelYukseklik - iconSize) / 2);
-
-                if (yeniScrollX < 0) yeniScrollX = 0;
-                if (yeniScrollY < 0) yeniScrollY = 0;
-
-                panel1.AutoScrollPosition = new Point(yeniScrollX, yeniScrollY);
-                panel1.Invalidate();
-            }
-        }
-
         private void Harita_MouseClick(object sender, MouseEventArgs e)
         {
             Point scrollPos = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
@@ -229,14 +359,9 @@ namespace Cihaz_Takip_Uygulaması
             {
                 if (e.Button == MouseButtons.Left)
                 {
-                    // Normal tıklama - sadece bilgileri göster
                     GuncelCihazBilgisiGoster(enYakinCihaz.RecNo);
                 }
-                else if (e.Button == MouseButtons.Right)
-                {
-                    // Sağ tıklama - cihaza zoom yap (örneğin 1.5x zoom ile)
-                    CihazaZoomYap(enYakinCihaz, 1.5f);
-                }
+                // Sağ tıkta artık menü açılıyor
             }
             else if (e.Button == MouseButtons.Left)
             {
@@ -257,7 +382,7 @@ namespace Cihaz_Takip_Uygulaması
             }
             return false;
         }
-        private string GetPngFilePath(string grupKod)//resim yolu
+        private string GetPngFilePath(string grupKod)
         {
             string basePath = @"C:\Users\ebildik\Desktop\PNG";
             string fileName = $"{grupKod}.png";
@@ -265,6 +390,15 @@ namespace Cihaz_Takip_Uygulaması
         }
         private void DrawConnections(Graphics g)
         {
+            float baseSwitchLineWidth = 3.0f;
+            float baseRedLineWidth = 2.0f;
+            float baseBrownLineWidth = 2.0f;
+
+            // Zoom büyüdükçe çizgiler incelsin (ör: zoom 2x ise çizgi yarı kalınlıkta)
+            float switchLineWidth = baseSwitchLineWidth / zoomFactor;
+            float redLineWidth = baseRedLineWidth / zoomFactor;
+            float brownLineWidth = baseBrownLineWidth / zoomFactor;
+
             if (enerjiPanolariniGoster)
             {
                 foreach (var cihaz in cihazlar)
@@ -274,7 +408,7 @@ namespace Cihaz_Takip_Uygulaması
                         var enerjiPanosu = cihazlar.FirstOrDefault(p => p.Aciklama == cihaz.EnerjiPanoNo && p.GrupKod == "Enerji panosu");
                         if (enerjiPanosu != null)
                         {
-                            using (Pen redPen = new Pen(Color.Red, 2))
+                            using (Pen redPen = new Pen(Color.Red, redLineWidth))
                                 g.DrawLine(redPen, cihaz.X, cihaz.Y, enerjiPanosu.X, enerjiPanosu.Y);
                         }
                     }
@@ -296,7 +430,7 @@ namespace Cihaz_Takip_Uygulaması
                                 renk = Color.DarkOrange;
                             else if (cihaz.GrupKod == "KGS")
                                 renk = Color.Purple;
-                            using (Pen kalem = new Pen(renk, 3))
+                            using (Pen kalem = new Pen(renk, switchLineWidth))
                                 g.DrawLine(kalem, switchCihaz.X, switchCihaz.Y, cihaz.X, cihaz.Y);
                         }
                     }
@@ -308,14 +442,15 @@ namespace Cihaz_Takip_Uygulaması
                         var bagliSwitch = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
                         if (bagliSwitch != null)
                         {
-                            using (Pen kahverengiKalem = new Pen(Color.Brown, 2))
+                            using (Pen kahverengiKalem = new Pen(Color.Brown, brownLineWidth))
                                 g.DrawLine(kahverengiKalem, cihaz.X, cihaz.Y, bagliSwitch.X, bagliSwitch.Y);
                         }
                     }
                 }
             }
         }
-        private class CihazBilgi
+
+        public class CihazBilgi
         {
             public int RecNo { get; set; }
             public int X { get; set; }
@@ -329,7 +464,6 @@ namespace Cihaz_Takip_Uygulaması
             public string EnerjiPanoNo { get; set; }
             public Color PointColor { get; set; } = Color.Black;
         }
-
         private void VeritabanindanCihazlariYukle()
         {
             try
@@ -370,48 +504,47 @@ namespace Cihaz_Takip_Uygulaması
                     }
                 }
 
-                // Optimize et: Sadece değişiklik olan cihazları kontrol et
-                bool degisiklikVar = false;
-
-                foreach (var yeniCihaz in yeniCihazlar)
+                bool degisiklikVar = !tumCihazlar.SequenceEqual(yeniCihazlar, new CihazBilgiComparer());
+                if (degisiklikVar)
                 {
-                    var mevcutCihaz = cihazlar.FirstOrDefault(c => c.RecNo == yeniCihaz.RecNo);
-                    if (mevcutCihaz == null)
-                    {
-                        // Yeni cihaz eklendi
-                        cihazlar.Add(yeniCihaz);
-                        degisiklikVar = true;
-                    }
+                    tumCihazlar = yeniCihazlar;
+
+                    // KGS veya Yazıcı filtresi aktifse ona göre cihazları göster
+                    if (menuKGS != null && menuKGS.Checked)
+                        cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("KGS", StringComparison.OrdinalIgnoreCase)).ToList();
+                    else if (menuYazici != null && menuYazici.Checked)
+                        cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Yazıcı", StringComparison.OrdinalIgnoreCase)).ToList();
                     else
-                    {
-                        // Mevcut cihazın durumu veya diğer bilgileri değişti mi?
-                        if (mevcutCihaz.X != yeniCihaz.X || mevcutCihaz.Y != yeniCihaz.Y ||
-                            mevcutCihaz.Durum != yeniCihaz.Durum || mevcutCihaz.EnerjiPanoNo != yeniCihaz.EnerjiPanoNo)
-                        {
-                            mevcutCihaz.X = yeniCihaz.X;
-                            mevcutCihaz.Y = yeniCihaz.Y;
-                            mevcutCihaz.Durum = yeniCihaz.Durum;
-                            mevcutCihaz.EnerjiPanoNo = yeniCihaz.EnerjiPanoNo;
-                            mevcutCihaz.PointColor = yeniCihaz.Durum.Equals("UP", StringComparison.OrdinalIgnoreCase) ? Color.Green : Color.Red;
-                            degisiklikVar = true;
-                        }
-                    }
-                }
+                        cihazlar = new List<CihazBilgi>(tumCihazlar);
 
-                // Çizgi gösterme durumu kontrolü
-                if (cizgileriGoster)
-                {
-                    // Eğer çizgiler gösteriliyorsa haritayı yeniden çiz
-                    if (degisiklikVar)
-                    {
-                        panel1.Invalidate();
-                    }
+                    panel1.Invalidate();
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Cihazlar yüklenirken hata oluştu: " + ex.Message,
                     "Veritabanı Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        public class CihazBilgiComparer : IEqualityComparer<CihazBilgi>
+        {
+            public bool Equals(CihazBilgi x, CihazBilgi y)
+            {
+                return x.RecNo == y.RecNo &&
+                       x.X == y.X &&
+                       x.Y == y.Y &&
+                       x.IPNo == y.IPNo &&
+                       x.Aciklama == y.Aciklama &&
+                       x.Durum == y.Durum &&
+                       x.MarkaModel == y.MarkaModel &&
+                       x.SwitchRecNo == y.SwitchRecNo &&
+                       x.GrupKod == y.GrupKod &&
+                       x.EnerjiPanoNo == y.EnerjiPanoNo;
+            }
+            public int GetHashCode(CihazBilgi obj)
+            {
+                return obj.RecNo.GetHashCode();
             }
         }
 
@@ -445,7 +578,6 @@ namespace Cihaz_Takip_Uygulaması
                                 sb.AppendLine($"Switch Port: {reader["SwitchPortNo"] ?? "N/A"}");
                                 sb.AppendLine($"Enerji Pano: {reader["EnerjiPanoNo"] ?? "N/A"}");
                                 sb.AppendLine($"Sigorta No: {reader["EnerjiPanoSigortaNo"] ?? "N/A"}");
-
                                 MessageBox.Show(sb.ToString(), "Cihaz Bilgisi", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
                             else
@@ -464,46 +596,18 @@ namespace Cihaz_Takip_Uygulaması
         }
         private void Harita_Load_1(object sender, EventArgs e)
         {
-
-        }
-        private void CizgiKaldirChckBox_CheckedChanged_1(object sender, EventArgs e)
-        {
-            cizgileriGoster = !CizgiKaldirChckBox.Checked;
-            panel1.Invalidate();
-        }
-        private void DownCihazlar_CheckedChanged_1(object sender, EventArgs e)
-        {
-            if (DownCihazlar.Checked) // Eğer checkbox işaretliyse
-            {
-                var downCihazlar = cihazlar
-    .Where(c => !string.IsNullOrEmpty(c.Durum) && c.Durum.IndexOf("Down", StringComparison.OrdinalIgnoreCase) >= 0)
-    .ToList();
-
-                // Sadece "Down" cihazları göstermek için listeyi güncelle
-                cihazlar = downCihazlar;
-
-                // Haritayı yeniden çiz
-                panel1.Invalidate();
-            }
-            else // Checkbox işaretli değilse tüm cihazları tekrar yükle
-            {
-                VeritabanindanCihazlariYukle();
-                panel1.Invalidate();
-            }
+            this.cihazGrupTableAdapter.Fill(this.kodlariGetir.CihazGrup);
         }
         private void Harita_Resize(object sender, EventArgs e)
         {
             if (backgroundImage != null)
             {
-                // Dinamik kaydırma çubuğu alanı
                 int genislik = Math.Max((int)(originalImageSize.Width * zoomFactor), panel1.ClientSize.Width + 1);
                 int yukseklik = Math.Max((int)(originalImageSize.Height * zoomFactor), panel1.ClientSize.Height + 1);
                 panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
             }
-
             panel1.Invalidate();
         }
-
         private void Panel1_MouseDown(object sender, MouseEventArgs e)
         {
             if (ctrlPressed && e.Button == MouseButtons.Left)
@@ -511,40 +615,27 @@ namespace Cihaz_Takip_Uygulaması
                 isPanning = true;
                 panStartMouse = e.Location;
                 panStartScroll = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
-                panel1.Cursor = Cursors.Hand; // El aracı şeklinde bir imleç gösterebilirsiniz
+                panel1.Cursor = Cursors.Hand;
             }
         }
-
         private void Panel1_MouseMove(object sender, MouseEventArgs e)
         {
             if (isPanning)
             {
                 int dx = e.X - panStartMouse.X;
                 int dy = e.Y - panStartMouse.Y;
-
-                // Yeni kaydırma pozisyonlarını hesapla
                 int newScrollX = panStartScroll.X - dx;
                 int newScrollY = panStartScroll.Y - dy;
-
-                // Kaydırma pozisyonlarını uygula
                 panel1.AutoScrollPosition = new Point(newScrollX, newScrollY);
             }
         }
-
-        private void Panel1_MouseUp(object sender, MouseEventArgs e)
-        {
-            if (isPanning)
-            {
-                isPanning = false;
-                panel1.Cursor = Cursors.Default; // İmleci normale döndür
-            }
-        }
-
         private void Panel1_MouseWheel(object sender, MouseEventArgs e)
         {
+            if (!ctrlPressed)
+                return;
+
             float oldZoom = zoomFactor;
 
-            // Zoom miktarını sınırla
             if (e.Delta > 0 && zoomFactor < maxZoom)
                 zoomFactor += zoomIncrement;
             else if (e.Delta < 0 && zoomFactor > minZoom)
@@ -552,40 +643,27 @@ namespace Cihaz_Takip_Uygulaması
             else
                 return;
 
-            // Fare konumunu belge koordinatlarına dönüştür (zoom öncesi)
             Point scrollPos = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
             float mouseDocX = (e.X + scrollPos.X) / oldZoom;
             float mouseDocY = (e.Y + scrollPos.Y) / oldZoom;
 
-            // Yeni zoom ile fare pozisyonunun ekran koordinatlarını hesapla
             int newMouseScreenX = (int)(mouseDocX * zoomFactor);
             int newMouseScreenY = (int)(mouseDocY * zoomFactor);
-
-            // Yeni scroll pozisyonu hesapla (fare pozisyonunu sabit tutacak şekilde)
             int newScrollX = newMouseScreenX - e.X;
             int newScrollY = newMouseScreenY - e.Y;
-
-            int genislik = (int)(originalImageSize.Width * 4); // Fotoğrafın 3 katı genişlik
-            int yukseklik = (int)(originalImageSize.Height * 4); // Fotoğrafın 3 katı yükseklik
+            int genislik = (int)(originalImageSize.Width * 5);
+            int yukseklik = (int)(originalImageSize.Height * 5);
             panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
-            // Kaydırma alanını güncelle, kaydırma alanı 
-            // int genislik = Math.Max((int)(originalImageSize.Width * zoomFactor), panel1.ClientSize.Width + 1);
-            //int yukseklik = Math.Max((int)(originalImageSize.Height * zoomFactor), panel1.ClientSize.Height + 1);
-            // panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
-
-            // Yeni scroll pozisyonunu uygula
             panel1.AutoScrollPosition = new Point(newScrollX, newScrollY);
-
-            // Haritayı yeniden çiz
             panel1.Invalidate();
+            if (e is HandledMouseEventArgs hme)
+                hme.Handled = true;
         }
-
         private void Harita_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.ControlKey)
                 ctrlPressed = true;
         }
-
         private void Harita_KeyUp(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.ControlKey)
