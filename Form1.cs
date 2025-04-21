@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
@@ -207,7 +207,6 @@ namespace Cihaz_Takip_Uygulaması
             cihazTimer.Start();
             _downCihazTimers.Add(cihazRecNo, cihazTimer);
         }
-
         private async void SendMailAndUpdateStatus(int cihazRecNo, int grupRecNo, string ip,
             string aciklama, DateTime downZamani, double gecenDakika)
         {
@@ -446,6 +445,7 @@ namespace Cihaz_Takip_Uygulaması
             rchTextBildirimler.AppendText(text + Environment.NewLine);
             rchTextBildirimler.SelectionColor = rchTextBildirimler.ForeColor;
             rchTextBildirimler.ScrollToCaret();
+            
         }
 
         private void Form1_Load(object sender, EventArgs e)
