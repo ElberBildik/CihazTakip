@@ -4,6 +4,7 @@ using System.Data;
 using System.Drawing;
 using System.Net.NetworkInformation;
 using System.Threading.Tasks;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace Cihaz_Takip_Uygulaması
@@ -180,16 +181,32 @@ namespace Cihaz_Takip_Uygulaması
         }
 
         private async Task HandleDeviceOfflineAsync(DataGridViewRow row, int cihazRecNo,
-            int cihazGrupRecNo, string ip, string aciklama)
+    int cihazGrupRecNo, string ip, string aciklama)
         {
             await Task.Run(() =>
             {
                 Invoke(new Action(() =>
                 {
-                    row.Cells["Durum"].Value = "Down oldu, mail atılacak";
-                    row.DefaultCellStyle.BackColor = Color.Red;
-                    LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu.", Color.Red);
-                    AddToDownDevices(cihazRecNo, cihazGrupRecNo, ip, aciklama);
+                    try
+                    {
+                        // Önce sütunun var olup olmadığını kontrol edelim
+                        if (row.DataGridView != null && row.DataGridView.Columns.Contains("Durum"))
+                        {
+                            row.Cells["Durum"].Value = "Down oldu, mail atılacak";
+                        }
+                        else
+                        {
+                            LogMessage($"[{DateTime.Now:HH:mm:ss}] 'Durum' sütunu bulunamadı!", Color.Red);
+                        }
+
+                        row.DefaultCellStyle.BackColor = Color.Red;
+                        LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu.", Color.Red);
+                        AddToDownDevices(cihazRecNo, cihazGrupRecNo, ip, aciklama);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogMessage($"[{DateTime.Now:HH:mm:ss}] Hata: {ex.Message}", Color.Red);
+                    }
                 }));
             });
 
@@ -501,7 +518,6 @@ namespace Cihaz_Takip_Uygulaması
             rchTextBildirimler.SelectionColor = rchTextBildirimler.ForeColor;
             rchTextBildirimler.ScrollToCaret();
         }
-
         private void Form1_Load(object sender, EventArgs e)
         {
             LogMessage("Uygulama başlatıldı.", Color.Blue);
@@ -549,11 +565,28 @@ namespace Cihaz_Takip_Uygulaması
                 MessageBox.Show("Filtreleme işlemi sırasında hata oluştu: " + ex.Message);
             }
         }
-
         private void button1_Click(object sender, EventArgs e)
         {
-            Form haritaForm = new Harita();
-            haritaForm.Show();
+            // Check if any form of type Harita is already open
+            Form existingForm = Application.OpenForms.OfType<Harita>().FirstOrDefault();
+
+            if (existingForm != null)
+            {
+                
+                MessageBox.Show("Harita ekranı zaten açık.", "Bilgi", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (existingForm.WindowState == FormWindowState.Minimized)
+                {
+                    existingForm.WindowState = FormWindowState.Normal; // Restore if minimized
+                }
+                existingForm.BringToFront(); // Bring to front
+                existingForm.Focus(); // Set focus to the form
+            }
+            else
+            {
+               
+                Form haritaForm = new Harita();
+                haritaForm.Show();
+            }
         }
 
     }
