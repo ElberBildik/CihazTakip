@@ -18,6 +18,10 @@ namespace Cihaz_Takip_Uygulaması
         private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
         private Timer durumGuncellemeTimer;
         private bool cizgileriGoster = true;
+        private bool tumCizgileriGoster = true;
+        private bool switchKameraCizgileriGoster = false;
+        private bool switchYaziciCizgileriGoster = false;
+        private bool switchKGSCizgileriGoster = false;
         private bool enerjiPanolariniGoster = true;
         private bool clientleriGoster = true;
         private float zoomFactor = 1.0f;
@@ -30,12 +34,18 @@ namespace Cihaz_Takip_Uygulaması
         private Point panStartMouse;
         private Point panStartScroll;
         private bool ctrlPressed = false;
+
+        //menü değişkenleri
         private ContextMenuStrip haritaMenu;
         private ToolStripMenuItem menuZoom;
         private ToolStripMenuItem menuKGS;
         private ToolStripMenuItem menuYazici;
         private ToolStripMenuItem menuEnerjiPanosu;
         private ToolStripMenuItem menuCizgiGoster;
+        private ToolStripMenuItem menuTumCizgiler;
+        private ToolStripMenuItem menuSwitchKamera;
+        private ToolStripMenuItem menuSwitchYazici;
+        private ToolStripMenuItem menuSwitchKGS;
         private ToolStripMenuItem menuZoomFormat;
         private ToolStripMenuItem menuZoom120;
         private ToolStripMenuItem menuZoom140;
@@ -48,6 +58,7 @@ namespace Cihaz_Takip_Uygulaması
         private ToolStripMenuItem menuPLC;
         private ToolStripMenuItem menuBilgisayar;
         private ToolStripMenuItem menuDownCihazlar;
+
         public Harita()
         {
             InitializeComponent();
@@ -69,22 +80,74 @@ namespace Cihaz_Takip_Uygulaması
             // Menü Kurulumu
             haritaMenu = new ContextMenuStrip();
             menuZoom = new ToolStripMenuItem("Yakınlaştır");
-            menuZoomFormat = new ToolStripMenuItem("%100", null, (s, e) => SetZoom(1f));
-            menuZoom120 = new ToolStripMenuItem("%120", null, (s, e) => SetZoom(1.2f));
-            menuZoom140 = new ToolStripMenuItem("%140", null, (s, e) => SetZoom(1.4f));
-            menuZoom160 = new ToolStripMenuItem("%160", null, (s, e) => SetZoom(1.6f));
-            menuZoom180 = new ToolStripMenuItem("%180", null, (s, e) => SetZoom(1.8f));
-            menuZoom200 = new ToolStripMenuItem("%200", null, (s, e) => SetZoom(2.0f));
-            menuZoom300 = new ToolStripMenuItem("%300", null, (s, e) => SetZoom(3.0f));
-            menuZoom400 = new ToolStripMenuItem("%400", null, (s, e) => SetZoom(4.0f));
+
+            // Zoom oranları için menü öğeleri
+            menuZoomFormat = new ToolStripMenuItem("%100", null, (s, e) => SetZoomWithCheck(menuZoomFormat, 1f));
+            menuZoom120 = new ToolStripMenuItem("%120", null, (s, e) => SetZoomWithCheck(menuZoom120, 1.2f));
+            menuZoom140 = new ToolStripMenuItem("%140", null, (s, e) => SetZoomWithCheck(menuZoom140, 1.4f));
+            menuZoom160 = new ToolStripMenuItem("%160", null, (s, e) => SetZoomWithCheck(menuZoom160, 1.6f));
+            menuZoom180 = new ToolStripMenuItem("%180", null, (s, e) => SetZoomWithCheck(menuZoom180, 1.8f));
+            menuZoom200 = new ToolStripMenuItem("%200", null, (s, e) => SetZoomWithCheck(menuZoom200, 2.0f));
+            menuZoom300 = new ToolStripMenuItem("%300", null, (s, e) => SetZoomWithCheck(menuZoom300, 3.0f));
+            menuZoom400 = new ToolStripMenuItem("%400", null, (s, e) => SetZoomWithCheck(menuZoom400, 4.0f));
+
+            // Menü öğelerini bir araya getiriyoruz
             menuZoom.DropDownItems.AddRange(new ToolStripItem[] {
                 menuZoomFormat, menuZoom120, menuZoom140, menuZoom160, menuZoom180, menuZoom200, menuZoom300, menuZoom400
             });
-            menuCizgiGoster = new ToolStripMenuItem("Çizgileri Göster", null, MenuCizgiGoster_Click)
+
+            // Tıklanan menüyü işaretlemek ve zoom oranını ayarlamak için metot
+            void SetZoomWithCheck(ToolStripMenuItem selectedMenu, float zoomFactor)
             {
-                Checked = cizgileriGoster,
+                // Tüm menü öğelerinin tiklerini kaldır
+                foreach (ToolStripMenuItem item in menuZoom.DropDownItems)
+                {
+                    item.Checked = false;
+                }
+
+                // Tıklanan menüye tik at
+                selectedMenu.Checked = true;
+
+                // Zoom değerini ayarla
+                SetZoom(zoomFactor);
+            }
+
+            // Çizgi Gösterme Menüsü ve Alt Menüleri
+            menuCizgiGoster = new ToolStripMenuItem("Çizgileri Göster");
+
+            // Alt menü öğelerini oluşturun
+            menuTumCizgiler = new ToolStripMenuItem("Bütün Çizgileri Göster", null, MenuTumCizgiler_Click)
+            {
+                Checked = tumCizgileriGoster,
                 CheckOnClick = true
             };
+
+            menuSwitchKamera = new ToolStripMenuItem("Switch-Kamera Çizgilerini Göster", null, MenuSwitchKamera_Click)
+            {
+                Checked = switchKameraCizgileriGoster,
+                CheckOnClick = true
+            };
+
+            menuSwitchYazici = new ToolStripMenuItem("Switch-Yazıcı Çizgilerini Göster", null, MenuSwitchYazici_Click)
+            {
+                Checked = switchYaziciCizgileriGoster,
+                CheckOnClick = true
+            };
+
+            menuSwitchKGS = new ToolStripMenuItem("Switch-KGS Çizgilerini Göster", null, MenuSwitchKGS_Click)
+            {
+                Checked = switchKGSCizgileriGoster,
+                CheckOnClick = true
+            };
+
+            // Alt menüleri ana çizgi menüsüne ekleyin
+            menuCizgiGoster.DropDownItems.AddRange(new ToolStripItem[]
+            {
+                menuTumCizgiler,
+                menuSwitchKamera,
+                menuSwitchYazici,
+                menuSwitchKGS
+            });
 
             // Ana Menü: Cihazları Göster
             var menuCihazlariGoster = new ToolStripMenuItem("Cihazları Göster");
@@ -92,70 +155,58 @@ namespace Cihaz_Takip_Uygulaması
             // Alt Menüler
             menuKGS = new ToolStripMenuItem("KGS Cihazlarını Göster", null, MenuKGS_Click)
             {
-                Checked = false,
                 CheckOnClick = true
             };
 
             menuYazici = new ToolStripMenuItem("Yazıcıları Göster", null, MenuYazici_Click)
             {
-                Checked = false,
                 CheckOnClick = true
             };
 
             menuEnerjiPanosu = new ToolStripMenuItem("Enerji Panolarını Göster", null, menuEnerjiPanosu_Click)
             {
-                Checked = false,
                 CheckOnClick = true
             };
 
             menuSwitchGöster = new ToolStripMenuItem("Data Switchleri Göster", null, menuSwitchGöster_Click)
             {
-                Checked = false,
                 CheckOnClick = true
             };
 
             menuPLC = new ToolStripMenuItem("PLC'leri Göster", null, menuPLC_Click)
             {
-                Checked = false,
                 CheckOnClick = true
             };
 
             menuBilgisayar = new ToolStripMenuItem("Bilgisayarları Göster", null, menuBilgisayar_Click)
             {
-                Checked = false,
                 CheckOnClick = true
             };
 
             menuDownCihazlar = new ToolStripMenuItem("Down Cihazları Göster", null, menuDownCihazlar_Click)
             {
-                Checked = false,
                 CheckOnClick = true
             };
 
             // Alt Menüler Ana Menüye Eklendi
             menuCihazlariGoster.DropDownItems.AddRange(new ToolStripItem[]
             {
-    menuKGS,
-    menuYazici,
-    menuEnerjiPanosu,
-    menuSwitchGöster,
-    menuPLC,
-    menuBilgisayar,
-    menuDownCihazlar
+                menuKGS,
+                menuYazici,
+                menuEnerjiPanosu,
+                menuSwitchGöster,
+                menuPLC,
+                menuBilgisayar,
+                menuDownCihazlar
             });
 
-            
+            // Harita Menüsüne Ana Menüyü Ekleyin
             haritaMenu.Items.AddRange(new ToolStripItem[]
             {
-    menuZoom, 
-    menuCizgiGoster, 
-    menuCihazlariGoster
+                menuZoom,
+                menuCizgiGoster,
+                menuCihazlariGoster
             });
-
-
-
-
-
 
             string imagePath = @"C:\Users\ebildik\Desktop\Genel Layout.PNG";
             try
@@ -176,6 +227,81 @@ namespace Cihaz_Takip_Uygulaması
             durumGuncellemeTimer.Start();
         }
 
+        // Yeni eklenen metotlar - Çizgi gösterme ayarları için
+        private void MenuTumCizgiler_Click(object sender, EventArgs e)
+        {
+            tumCizgileriGoster = ((ToolStripMenuItem)sender).Checked;
+            cizgileriGoster = tumCizgileriGoster;
+
+            if (tumCizgileriGoster)
+            {
+                // Tüm çizgiler gösterilecekse diğer çizgi seçeneklerini devre dışı bırak
+                switchKameraCizgileriGoster = false;
+                switchYaziciCizgileriGoster = false;
+                switchKGSCizgileriGoster = false;
+
+                // Diğer menülerin işaretlerini kaldır
+                menuSwitchKamera.Checked = false;
+                menuSwitchYazici.Checked = false;
+                menuSwitchKGS.Checked = false;
+            }
+            panel1.Invalidate(); // Panel'i yeniden çiz
+        }
+
+        private void MenuSwitchKamera_Click(object sender, EventArgs e)
+        {
+            switchKameraCizgileriGoster = ((ToolStripMenuItem)sender).Checked;
+
+            if (switchKameraCizgileriGoster)
+            {
+                // Özel bir çizgi seçilirse tüm çizgileri devre dışı bırak
+                tumCizgileriGoster = false;
+                menuTumCizgiler.Checked = false;
+            }
+
+            // Herhangi bir çizgi seçiliyse, cizgileriGoster'i aktif et, hiçbiri seçili değilse kapat
+            cizgileriGoster = switchKameraCizgileriGoster || switchYaziciCizgileriGoster ||
+                              switchKGSCizgileriGoster || tumCizgileriGoster;
+
+            panel1.Invalidate();
+        }
+
+        private void MenuSwitchYazici_Click(object sender, EventArgs e)
+        {
+            switchYaziciCizgileriGoster = ((ToolStripMenuItem)sender).Checked;
+
+            if (switchYaziciCizgileriGoster)
+            {
+                // Özel bir çizgi seçilirse tüm çizgileri devre dışı bırak
+                tumCizgileriGoster = false;
+                menuTumCizgiler.Checked = false;
+            }
+
+            // Herhangi bir çizgi seçiliyse, cizgileriGoster'i aktif et, hiçbiri seçili değilse kapat
+            cizgileriGoster = switchKameraCizgileriGoster || switchYaziciCizgileriGoster ||
+                              switchKGSCizgileriGoster || tumCizgileriGoster;
+
+            panel1.Invalidate();
+        }
+
+        private void MenuSwitchKGS_Click(object sender, EventArgs e)
+        {
+            switchKGSCizgileriGoster = ((ToolStripMenuItem)sender).Checked;
+
+            if (switchKGSCizgileriGoster)
+            {
+                // Özel bir çizgi seçilirse tüm çizgileri devre dışı bırak
+                tumCizgileriGoster = false;
+                menuTumCizgiler.Checked = false;
+            }
+
+            // Herhangi bir çizgi seçiliyse, cizgileriGoster'i aktif et, hiçbiri seçili değilse kapat
+            cizgileriGoster = switchKameraCizgileriGoster || switchYaziciCizgileriGoster ||
+                              switchKGSCizgileriGoster || tumCizgileriGoster;
+
+            panel1.Invalidate();
+        }
+
         private void menuDownCihazlar_Click(object sender, EventArgs e)
         {
             if (menuDownCihazlar.Checked)
@@ -193,9 +319,9 @@ namespace Cihaz_Takip_Uygulaması
             panel1.Invalidate();
         }
 
-        private void menuPLC_Click(object sender,EventArgs e)
+        private void menuPLC_Click(object sender, EventArgs e)
         {
-            if(menuPLC.Checked)
+            if (menuPLC.Checked)
             {
                 cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("PLC", StringComparison.OrdinalIgnoreCase)).ToList();
             }
@@ -205,11 +331,17 @@ namespace Cihaz_Takip_Uygulaması
             }
             panel1.Invalidate();
         }
+
         private void Panel1_MouseUp(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Right)
             {
-                menuCizgiGoster.Checked = cizgileriGoster;
+                // Menü gösterilmeden önce çizgi seçeneklerinin durumlarını ayarla
+                menuTumCizgiler.Checked = tumCizgileriGoster;
+                menuSwitchKamera.Checked = switchKameraCizgileriGoster;
+                menuSwitchYazici.Checked = switchYaziciCizgileriGoster;
+                menuSwitchKGS.Checked = switchKGSCizgileriGoster;
+
                 haritaMenu.Show(panel1, e.Location);
             }
 
@@ -219,9 +351,10 @@ namespace Cihaz_Takip_Uygulaması
                 panel1.Cursor = Cursors.Default;
             }
         }
-        private void menuSwitchGöster_Click(object sender,EventArgs e)
+
+        private void menuSwitchGöster_Click(object sender, EventArgs e)
         {
-            if(menuSwitchGöster.Checked)
+            if (menuSwitchGöster.Checked)
             {
                 cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Data Switch", StringComparison.OrdinalIgnoreCase)).ToList();
             }
@@ -231,9 +364,10 @@ namespace Cihaz_Takip_Uygulaması
             }
             panel1.Invalidate();
         }
-        private void menuBilgisayar_Click(object sender,EventArgs e)
+
+        private void menuBilgisayar_Click(object sender, EventArgs e)
         {
-            if(menuBilgisayar.Checked)
+            if (menuBilgisayar.Checked)
             {
                 cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Bilgisayarlar", StringComparison.OrdinalIgnoreCase)).ToList();
             }
@@ -248,21 +382,22 @@ namespace Cihaz_Takip_Uygulaması
         {
             if (menuEnerjiPanosu.Checked)
             {
-
                 cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Enerji panosu", StringComparison.OrdinalIgnoreCase)).ToList();
             }
             else
             {
-
                 cihazlar = new List<CihazBilgi>(tumCihazlar);
             }
             panel1.Invalidate();
         }
+
+        // Bu metot artık kullanılmıyor, yerine MenuTumCizgiler_Click kullanılıyor
         private void MenuCizgiGoster_Click(object sender, EventArgs e)
         {
             cizgileriGoster = menuCizgiGoster.Checked;
             panel1.Invalidate();
         }
+
         private void MenuKGS_Click(object sender, EventArgs e)
         {
             if (menuKGS.Checked)
@@ -276,7 +411,7 @@ namespace Cihaz_Takip_Uygulaması
             }
             panel1.Invalidate();
         }
-         
+
         private void MenuYazici_Click(object sender, EventArgs e)
         {
             if (menuYazici.Checked)
@@ -363,6 +498,7 @@ namespace Cihaz_Takip_Uygulaması
                 }
             }
         }
+
         private void Harita_MouseClick(object sender, MouseEventArgs e)
         {
             Point scrollPos = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
@@ -400,7 +536,6 @@ namespace Cihaz_Takip_Uygulaması
                 konumForm.ShowDialog();
             }
         }
-        
 
         private bool IsAllowedDeviceType(string grupKod)//cihazları buraya gireceğiz
         {
@@ -414,12 +549,14 @@ namespace Cihaz_Takip_Uygulaması
             }
             return false;
         }
+
         private string GetPngFilePath(string grupKod)
         {
             string basePath = @"C:\Users\ebildik\Desktop\PNG";
             string fileName = $"{grupKod}.png";
             return Path.Combine(basePath, fileName);
         }
+
         private void DrawConnections(Graphics g)
         {
             float baseSwitchLineWidth = 3.0f;
@@ -444,7 +581,8 @@ namespace Cihaz_Takip_Uygulaması
                     }
                 }
             }
-            if (cizgileriGoster)//ÇİZGİLER BURADA ÇİZİLİRYOR
+
+            if (cizgileriGoster) // ÇİZGİLER BURADA ÇİZİLİYOR
             {
                 foreach (var cihaz in cihazlar)
                 {
@@ -453,27 +591,52 @@ namespace Cihaz_Takip_Uygulaması
                         var switchCihaz = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
                         if (switchCihaz != null)
                         {
-                            Color renk = Color.BlueViolet;
-                            if (cihaz.GrupKod == "Kamera")
-                                renk = Color.Chartreuse;//Fosforlu sarı
-                            else if (cihaz.GrupKod == "Yazıcı")
-                                renk = Color.DarkOrange;
-                            else if (cihaz.GrupKod == "KGS")
-                                renk = Color.Purple;
-                            using (Pen kalem = new Pen(renk, switchLineWidth))
-                                g.DrawLine(kalem, switchCihaz.X, switchCihaz.Y, cihaz.X, cihaz.Y);
+                            // Hangi çizgilerin gösterileceğine karar ver
+                            bool cizgiCizilecek = tumCizgileriGoster;
+
+                            // Filtrelemeleri uygula
+                            if (!cizgiCizilecek)
+                            {
+                                if (switchKameraCizgileriGoster && cihaz.GrupKod == "Kamera")
+                                    cizgiCizilecek = true;
+
+                                if (switchYaziciCizgileriGoster && cihaz.GrupKod == "Yazıcı")
+                                    cizgiCizilecek = true;
+
+                                if (switchKGSCizgileriGoster && cihaz.GrupKod == "KGS")
+                                    cizgiCizilecek = true;
+                            }
+
+                            if (cizgiCizilecek)
+                            {
+                                Color renk = Color.BlueViolet;
+                                if (cihaz.GrupKod == "Kamera")
+                                    renk = Color.Chartreuse;//Fosforlu sarı
+                                else if (cihaz.GrupKod == "Yazıcı")
+                                    renk = Color.DarkOrange;
+                                else if (cihaz.GrupKod == "KGS")
+                                    renk = Color.Purple;
+
+                                using (Pen kalem = new Pen(renk, switchLineWidth))
+                                    g.DrawLine(kalem, switchCihaz.X, switchCihaz.Y, cihaz.X, cihaz.Y);
+                            }
                         }
                     }
                 }
-                foreach (var cihaz in cihazlar)
+
+                // Switch-Switch bağlantıları her zaman göster
+                if (tumCizgileriGoster)
                 {
-                    if (cihaz.GrupKod == "Data Switch" || cihaz.GrupKod == "Kamera Switch")
+                    foreach (var cihaz in cihazlar)
                     {
-                        var bagliSwitch = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
-                        if (bagliSwitch != null)
+                        if (cihaz.GrupKod == "Data Switch" || cihaz.GrupKod == "Kamera Switch")
                         {
-                            using (Pen kahverengiKalem = new Pen(Color.Brown, brownLineWidth))
-                                g.DrawLine(kahverengiKalem, cihaz.X, cihaz.Y, bagliSwitch.X, bagliSwitch.Y);
+                            var bagliSwitch = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
+                            if (bagliSwitch != null)
+                            {
+                                using (Pen kahverengiKalem = new Pen(Color.Brown, brownLineWidth))
+                                    g.DrawLine(kahverengiKalem, cihaz.X, cihaz.Y, bagliSwitch.X, bagliSwitch.Y);
+                            }
                         }
                     }
                 }
@@ -697,11 +860,6 @@ namespace Cihaz_Takip_Uygulaması
                 ctrlPressed = true;
         }
         private void Harita_KeyUp(object sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.ControlKey)
-                ctrlPressed = false;
-        }
-        private void Harita_KeyUP(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.ControlKey)
                 ctrlPressed = false;
