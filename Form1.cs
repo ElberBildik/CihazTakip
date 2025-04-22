@@ -68,6 +68,18 @@ namespace Cihaz_Takip_Uygulaması
             try
             {
                 MesajlarRchTxt.Clear();
+
+                // Her ping işlemi öncesinde güncel veritabanı listesini alıyoruz
+                await Task.Run(() =>
+                {
+                    Invoke(new Action(() =>
+                    {
+                        DataTable dt = VeriErisim.VerileriGetir();
+                        Cihazlar.DataSource = dt;
+                        ConfigureDevicesGridView();
+                    }));
+                });
+
                 var tasks = new List<Task>();
 
                 foreach (DataGridViewRow row in Cihazlar.Rows)
@@ -190,7 +202,7 @@ namespace Cihaz_Takip_Uygulaması
 
         private void AddToDownDevices(int cihazRecNo, int grupRecNo, string ip, string aciklama)
         {
-            // Check if device already exists in down devices list
+            
             foreach (DataRow row in _downCihazlarTable.Rows)
             {
                 if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
@@ -543,9 +555,6 @@ namespace Cihaz_Takip_Uygulaması
             Form haritaForm = new Harita();
             haritaForm.Show();
         }
-        
-
-        
 
     }
 }
