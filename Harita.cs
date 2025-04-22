@@ -48,7 +48,6 @@ namespace Cihaz_Takip_Uygulaması
         private ToolStripMenuItem menuPLC;
         private ToolStripMenuItem menuBilgisayar;
         private ToolStripMenuItem menuDownCihazlar;
-        
         public Harita()
         {
             InitializeComponent();
@@ -70,7 +69,7 @@ namespace Cihaz_Takip_Uygulaması
             // Menü Kurulumu
             haritaMenu = new ContextMenuStrip();
             menuZoom = new ToolStripMenuItem("Yakınlaştır");
-            menuZoomFormat = new ToolStripMenuItem("Varsayılan", null, (s, e) => SetZoom(1f));
+            menuZoomFormat = new ToolStripMenuItem("%100", null, (s, e) => SetZoom(1f));
             menuZoom120 = new ToolStripMenuItem("%120", null, (s, e) => SetZoom(1.2f));
             menuZoom140 = new ToolStripMenuItem("%140", null, (s, e) => SetZoom(1.4f));
             menuZoom160 = new ToolStripMenuItem("%160", null, (s, e) => SetZoom(1.6f));
@@ -81,50 +80,82 @@ namespace Cihaz_Takip_Uygulaması
             menuZoom.DropDownItems.AddRange(new ToolStripItem[] {
                 menuZoomFormat, menuZoom120, menuZoom140, menuZoom160, menuZoom180, menuZoom200, menuZoom300, menuZoom400
             });
-
             menuCizgiGoster = new ToolStripMenuItem("Çizgileri Göster", null, MenuCizgiGoster_Click)
             {
                 Checked = cizgileriGoster,
                 CheckOnClick = true
             };
 
+            // Ana Menü: Cihazları Göster
+            var menuCihazlariGoster = new ToolStripMenuItem("Cihazları Göster");
+
+            // Alt Menüler
             menuKGS = new ToolStripMenuItem("KGS Cihazlarını Göster", null, MenuKGS_Click)
             {
                 Checked = false,
                 CheckOnClick = true
             };
+
             menuYazici = new ToolStripMenuItem("Yazıcıları Göster", null, MenuYazici_Click)
             {
                 Checked = false,
                 CheckOnClick = true
             };
+
             menuEnerjiPanosu = new ToolStripMenuItem("Enerji Panolarını Göster", null, menuEnerjiPanosu_Click)
             {
-                Checked=false,
-                CheckOnClick=true
+                Checked = false,
+                CheckOnClick = true
             };
+
             menuSwitchGöster = new ToolStripMenuItem("Data Switchleri Göster", null, menuSwitchGöster_Click)
             {
-                Checked=false,
-                CheckOnClick=true
+                Checked = false,
+                CheckOnClick = true
             };
+
             menuPLC = new ToolStripMenuItem("PLC'leri Göster", null, menuPLC_Click)
             {
                 Checked = false,
-                CheckOnClick=true
-            };
-            menuBilgisayar = new ToolStripMenuItem("Bilgisayarları Göster", null, menuBilgisayar_Click)
-            {
-                Checked=false,
-                CheckOnClick=true
-            };
-            menuDownCihazlar = new ToolStripMenuItem("Down Cihazları Göster", null, menuDownCihazlar_Click)
-            {
-                Checked=false,
-                CheckOnClick=true
+                CheckOnClick = true
             };
 
-            haritaMenu.Items.AddRange(new ToolStripItem[] { menuZoom, menuCizgiGoster, menuKGS, menuYazici, menuEnerjiPanosu, menuSwitchGöster,menuPLC,menuBilgisayar,menuDownCihazlar });
+            menuBilgisayar = new ToolStripMenuItem("Bilgisayarları Göster", null, menuBilgisayar_Click)
+            {
+                Checked = false,
+                CheckOnClick = true
+            };
+
+            menuDownCihazlar = new ToolStripMenuItem("Down Cihazları Göster", null, menuDownCihazlar_Click)
+            {
+                Checked = false,
+                CheckOnClick = true
+            };
+
+            // Alt Menüler Ana Menüye Eklendi
+            menuCihazlariGoster.DropDownItems.AddRange(new ToolStripItem[]
+            {
+    menuKGS,
+    menuYazici,
+    menuEnerjiPanosu,
+    menuSwitchGöster,
+    menuPLC,
+    menuBilgisayar,
+    menuDownCihazlar
+            });
+
+            
+            haritaMenu.Items.AddRange(new ToolStripItem[]
+            {
+    menuZoom, 
+    menuCizgiGoster, 
+    menuCihazlariGoster
+            });
+
+
+
+
+
 
             string imagePath = @"C:\Users\ebildik\Desktop\Genel Layout.PNG";
             try
@@ -245,7 +276,7 @@ namespace Cihaz_Takip_Uygulaması
             }
             panel1.Invalidate();
         }
-
+         
         private void MenuYazici_Click(object sender, EventArgs e)
         {
             if (menuYazici.Checked)
@@ -369,8 +400,9 @@ namespace Cihaz_Takip_Uygulaması
                 konumForm.ShowDialog();
             }
         }
+        
 
-        private bool IsAllowedDeviceType(string grupKod)
+        private bool IsAllowedDeviceType(string grupKod)//cihazları buraya gireceğiz
         {
             string[] allowedDeviceTypes = {
                 "KGS", "Yazıcı", "Kamera", "Data Switch", "Enerji panosu", "Bilgisayarlar", "PLC", "Kamera Switch"
@@ -393,8 +425,6 @@ namespace Cihaz_Takip_Uygulaması
             float baseSwitchLineWidth = 3.0f;
             float baseRedLineWidth = 2.0f;
             float baseBrownLineWidth = 2.0f;
-
-            // Zoom büyüdükçe çizgiler incelsin (ör: zoom 2x ise çizgi yarı kalınlıkta)
             float switchLineWidth = baseSwitchLineWidth / zoomFactor;
             float redLineWidth = baseRedLineWidth / zoomFactor;
             float brownLineWidth = baseBrownLineWidth / zoomFactor;
@@ -414,7 +444,7 @@ namespace Cihaz_Takip_Uygulaması
                     }
                 }
             }
-            if (cizgileriGoster)
+            if (cizgileriGoster)//ÇİZGİLER BURADA ÇİZİLİRYOR
             {
                 foreach (var cihaz in cihazlar)
                 {
@@ -425,7 +455,7 @@ namespace Cihaz_Takip_Uygulaması
                         {
                             Color renk = Color.BlueViolet;
                             if (cihaz.GrupKod == "Kamera")
-                                renk = Color.Chartreuse;
+                                renk = Color.Chartreuse;//Fosforlu sarı
                             else if (cihaz.GrupKod == "Yazıcı")
                                 renk = Color.DarkOrange;
                             else if (cihaz.GrupKod == "KGS")
@@ -547,7 +577,6 @@ namespace Cihaz_Takip_Uygulaması
                 return obj.RecNo.GetHashCode();
             }
         }
-
         private void GuncelCihazBilgisiGoster(int cihazRecNo)
         {
             try
@@ -555,12 +584,13 @@ namespace Cihaz_Takip_Uygulaması
                 using (SqlConnection connection = new SqlConnection(connectionString))
                 {
                     string query = @"
-                        SELECT c.RecNo, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel,
-                               c.SwitchPortNo, c.EnerjiPanoNo, c.EnerjiPanoSigortaNo,
-                               cg.Aciklama as GrupAdi
-                        FROM Cihaz c
-                        LEFT JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
-                        WHERE c.RecNo = @RecNo";
+                SELECT c.RecNo, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel,
+                       c.SwitchPortNo, c.EnerjiPanoNo, c.EnerjiPanoSigortaNo,
+                       c.X, c.Y,
+                       cg.Aciklama as GrupAdi
+                FROM Cihaz c
+                LEFT JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
+                WHERE c.RecNo = @RecNo";
                     using (SqlCommand command = new SqlCommand(query, connection))
                     {
                         command.Parameters.AddWithValue("@RecNo", cihazRecNo);
@@ -578,6 +608,8 @@ namespace Cihaz_Takip_Uygulaması
                                 sb.AppendLine($"Switch Port: {reader["SwitchPortNo"] ?? "N/A"}");
                                 sb.AppendLine($"Enerji Pano: {reader["EnerjiPanoNo"] ?? "N/A"}");
                                 sb.AppendLine($"Sigorta No: {reader["EnerjiPanoSigortaNo"] ?? "N/A"}");
+                                sb.AppendLine($"X Koordinat: {reader["X"] ?? "N/A"}");
+                                sb.AppendLine($"Y Koordinat: {reader["Y"] ?? "N/A"}");
                                 MessageBox.Show(sb.ToString(), "Cihaz Bilgisi", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
                             else
@@ -665,6 +697,11 @@ namespace Cihaz_Takip_Uygulaması
                 ctrlPressed = true;
         }
         private void Harita_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.ControlKey)
+                ctrlPressed = false;
+        }
+        private void Harita_KeyUP(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.ControlKey)
                 ctrlPressed = false;
