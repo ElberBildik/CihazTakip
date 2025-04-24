@@ -492,14 +492,24 @@ namespace Cihaz_Takip_Uygulaması
                         imageGraphics.DrawImage(cihazImage, 0, 0, cihazImage.Width, cihazImage.Height);
 
                         Color tintColor;
-                        if (!string.IsNullOrEmpty(cihaz.Durum) &&
+                        if (cihaz.GrupKod == "Enerji panosu")
+                        {
+                            tintColor = Color.FromArgb(170, Color.Orange);
+                        }
+                        else if (!string.IsNullOrEmpty(cihaz.Durum) &&
                             cihaz.Durum.IndexOf("UP", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
                             tintColor = Color.FromArgb(170, Color.Green);
+                        }
                         else if (!string.IsNullOrEmpty(cihaz.Durum) &&
                                  cihaz.Durum.IndexOf("Down", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
                             tintColor = Color.FromArgb(170, Color.Red);
+                        }
                         else
+                        {
                             tintColor = Color.FromArgb(170, Color.BlueViolet);
+                        }
 
                         using (Brush overlay = new SolidBrush(tintColor))
                             imageGraphics.FillRectangle(overlay, 0, 0, coloredImage.Width, coloredImage.Height);
@@ -546,7 +556,7 @@ namespace Cihaz_Takip_Uygulaması
                 {
                     GuncelCihazBilgisiGoster(enYakinCihaz.RecNo);
                 }
-                // Sağ tıkta artık menü açılıyor
+                // Sağ tıkta menü açılıyor
             }
             else if (e.Button == MouseButtons.Left)
             {
@@ -577,7 +587,7 @@ namespace Cihaz_Takip_Uygulaması
 
         private void DrawConnections(Graphics g)
         {
-            float baseSwitchLineWidth = 3.0f;
+            float baseSwitchLineWidth = 2.0f;
             float baseRedLineWidth = 2.0f;
             float baseBrownLineWidth = 2.0f;
             float switchLineWidth = baseSwitchLineWidth / zoomFactor;
@@ -844,8 +854,14 @@ namespace Cihaz_Takip_Uygulaması
         }
         private void Panel1_MouseWheel(object sender, MouseEventArgs e)
         {
+          
             if (!ctrlPressed)
+            {
+                
+                if (e is HandledMouseEventArgs hme)
+                    hme.Handled = false;
                 return;
+            }
 
             float oldZoom = zoomFactor;
 
@@ -856,7 +872,7 @@ namespace Cihaz_Takip_Uygulaması
             else
                 return;
 
-            Point scrollPos = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
+            Point scrollPos = new Point(MousePosition.X, MousePosition.Y);
             float mouseDocX = (e.X + scrollPos.X) / oldZoom;
             float mouseDocY = (e.Y + scrollPos.Y) / oldZoom;
 
@@ -864,13 +880,15 @@ namespace Cihaz_Takip_Uygulaması
             int newMouseScreenY = (int)(mouseDocY * zoomFactor);
             int newScrollX = newMouseScreenX - e.X;
             int newScrollY = newMouseScreenY - e.Y;
-            int genislik = (int)(originalImageSize.Width * 5);
-            int yukseklik = (int)(originalImageSize.Height * 5);
+            int genislik = (int)(originalImageSize.Width * zoomFactor);
+            int yukseklik = (int)(originalImageSize.Height * zoomFactor);
             panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
             panel1.AutoScrollPosition = new Point(newScrollX, newScrollY);
             panel1.Invalidate();
-            if (e is HandledMouseEventArgs hme)
-                hme.Handled = true;
+
+            // Mark the event as handled when we're zooming
+            if (e is HandledMouseEventArgs hme2)
+                hme2.Handled = true;
         }
         private void Harita_KeyDown(object sender, KeyEventArgs e)
         {
