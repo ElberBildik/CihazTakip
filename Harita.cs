@@ -125,8 +125,8 @@ namespace Cihaz_Takip_Uygulaması
             };
             menuTumCihazlar = new ToolStripMenuItem("Bütün Cihazları Göster", null, MenuTumCihazlar_Click)
             {
-                Checked=tumCizgileriGoster,
-                CheckOnClick=true
+                Checked = tumCizgileriGoster,
+                CheckOnClick = true
             };
 
 
@@ -248,7 +248,7 @@ namespace Cihaz_Takip_Uygulaması
                 cihazlar = new List<CihazBilgi>(); // Hiçbir cihazı gösterme
             }
 
-            panel1.Invalidate(); 
+            panel1.Invalidate();
         }
 
         // Yeni eklenen metotlar - Çizgi gösterme ayarları için
@@ -452,7 +452,7 @@ namespace Cihaz_Takip_Uygulaması
             int yukseklik = Math.Max((int)(originalImageSize.Height * zoomFactor), panel1.ClientSize.Height + 1);
             panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
 
-            panel1.AutoScrollPosition = new Point(750, 750);//burası mouse'ın konumu olacak 
+            panel1.AutoScrollPosition = new Point(MousePosition.X, MousePosition.Y); // mouse'un x ve y konumumuna göre yapacak
             panel1.Invalidate();
         }
 
