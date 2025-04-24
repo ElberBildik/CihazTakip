@@ -1,917 +1,604 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
+using System.Data;
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.IO;
+using System.Net.NetworkInformation;
+using System.Threading.Tasks;
 using System.Linq;
-using System.Text;
 using System.Windows.Forms;
 
 namespace Cihaz_Takip_Uygulaması
 {
-    public partial class Harita : Form
+    public partial class Form1 : Form
     {
-        private List<CihazBilgi> tumCihazlar = new List<CihazBilgi>();
-        private List<CihazBilgi> cihazlar = new List<CihazBilgi>();
-        private int pointRadius = 8;
-        private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
-        private Timer durumGuncellemeTimer;
-        private bool cizgileriGoster = true;
-        private bool tumCizgileriGoster = true;
-        private bool tumCihazlarıGoster = true;
-        private bool switchKameraCizgileriGoster = false;
-        private bool switchYaziciCizgileriGoster = false;
-        private bool switchKGSCizgileriGoster = false;
-        private bool enerjiPanolariniGoster = true;
-        private bool clientleriGoster = true;
-        private float zoomFactor = 1.0f;
-        private const float zoomIncrement = 0.1f;
-        private const float minZoom = 0.5f;
-        private const float maxZoom = 4.0f;
-        private Image backgroundImage;
-        private Size originalImageSize;
-        private bool isPanning = false;
-        private Point panStartMouse;
-        private Point panStartScroll;
-        private bool ctrlPressed = false;
+        private Timer _pingTimer;
+        private DataTable _downCihazlarTable;
+        private readonly Dictionary<int, Timer> _downCihazTimers;
+        private readonly Dictionary<int, string> _cihazDurumlari;
+        private const int PING_INTERVAL = 1000; // 1 saniye
+        private const int PING_TIMEOUT = 1000; // 1 saniye
 
-        //menü değişkenleri
-        private ContextMenuStrip haritaMenu;
-        private ToolStripMenuItem menuZoom;
-        private ToolStripMenuItem menuKGS;
-        private ToolStripMenuItem menuYazici;
-        private ToolStripMenuItem menuEnerjiPanosu;
-        private ToolStripMenuItem menuCizgiGoster;
-        private ToolStripMenuItem menuTumCizgiler;
-        private ToolStripMenuItem menuSwitchKamera;
-        private ToolStripMenuItem menuSwitchYazici;
-        private ToolStripMenuItem menuSwitchKGS;
-        private ToolStripMenuItem menuZoomFormat;
-        private ToolStripMenuItem menuZoom120;
-        private ToolStripMenuItem menuZoom140;
-        private ToolStripMenuItem menuZoom160;
-        private ToolStripMenuItem menuZoom180;
-        private ToolStripMenuItem menuZoom200;
-        private ToolStripMenuItem menuZoom300;
-        private ToolStripMenuItem menuZoom400;
-        private ToolStripMenuItem menuSwitchGöster;
-        private ToolStripMenuItem menuPLC;
-        private ToolStripMenuItem menuBilgisayar;
-        private ToolStripMenuItem menuDownCihazlar;
-        private ToolStripMenuItem menuTumCihazlar;
-
-        public Harita()
+        public Form1()
         {
             InitializeComponent();
-            this.DoubleBuffered = true;
-            this.panel1.AutoScroll = true;
-            this.panel1.Paint += Harita_Paint;
-            this.panel1.MouseClick += Harita_MouseClick;
-            this.panel1.MouseUp += Panel1_MouseUp;
-            this.panel1.MouseDown += Panel1_MouseDown;
-            this.panel1.MouseMove += Panel1_MouseMove;
-            this.Resize += Harita_Resize;
-            this.panel1.MouseWheel += Panel1_MouseWheel;
-            this.panel1.MouseEnter += (s, e) => panel1.Focus();
-            this.panel1.TabStop = true;
-            this.KeyPreview = true;
-            this.KeyDown += Harita_KeyDown;
-            this.KeyUp += Harita_KeyUp;
+            _downCihazTimers = new Dictionary<int, Timer>();
+            _cihazDurumlari = new Dictionary<int, string>();
+            InitializeDownCihazlarGrid();
+            InitializePingTimer();
+            LoadDeviceData();
+        }
 
-            // Menü Kurulumu
-            haritaMenu = new ContextMenuStrip();
-            menuZoom = new ToolStripMenuItem("Yakınlaştır");
-
-            // Zoom oranları için menü öğeleri
-            menuZoomFormat = new ToolStripMenuItem("%100", null, (s, e) => SetZoomWithCheck(menuZoomFormat, 1f));
-            menuZoom120 = new ToolStripMenuItem("%120", null, (s, e) => SetZoomWithCheck(menuZoom120, 1.2f));
-            menuZoom140 = new ToolStripMenuItem("%140", null, (s, e) => SetZoomWithCheck(menuZoom140, 1.4f));
-            menuZoom160 = new ToolStripMenuItem("%160", null, (s, e) => SetZoomWithCheck(menuZoom160, 1.6f));
-            menuZoom180 = new ToolStripMenuItem("%180", null, (s, e) => SetZoomWithCheck(menuZoom180, 1.8f));
-            menuZoom200 = new ToolStripMenuItem("%200", null, (s, e) => SetZoomWithCheck(menuZoom200, 2.0f));
-            menuZoom300 = new ToolStripMenuItem("%300", null, (s, e) => SetZoomWithCheck(menuZoom300, 3.0f));
-            menuZoom400 = new ToolStripMenuItem("%400", null, (s, e) => SetZoomWithCheck(menuZoom400, 4.0f));
-
-            // Menü öğelerini bir araya getiriyoruz
-            menuZoom.DropDownItems.AddRange(new ToolStripItem[] {
-                menuZoomFormat, menuZoom120, menuZoom140, menuZoom160, menuZoom180, menuZoom200, menuZoom300, menuZoom400
+        private void InitializeDownCihazlarGrid()
+        {
+            _downCihazlarTable = new DataTable();
+            _downCihazlarTable.Columns.AddRange(new[]
+            {
+                new DataColumn("RecNo", typeof(int)),
+                new DataColumn("GrupRecNo", typeof(int)),
+                new DataColumn("IPNo", typeof(string)),
+                new DataColumn("Aciklama", typeof(string)),
+                new DataColumn("DownZamani", typeof(DateTime)),
+                new DataColumn("BeklemeSuresi", typeof(int)),
+                new DataColumn("KalanSure", typeof(string)),
+                new DataColumn("Durum", typeof(string))
             });
 
-            // Tıklanan menüyü işaretlemek ve zoom oranını ayarlamak için metot
-            void SetZoomWithCheck(ToolStripMenuItem selectedMenu, float zoomFactor)
-            {
-                // Tüm menü öğelerinin tiklerini kaldır
-                foreach (ToolStripMenuItem item in menuZoom.DropDownItems)
-                {
-                    item.Checked = false;
-                }
+            downCihazlar.DataSource = _downCihazlarTable;
+            ConfigureDownCihazlarGridView();
+        }
 
-                // Tıklanan menüye tik at
-                selectedMenu.Checked = true;
+        private void ConfigureDownCihazlarGridView()//down olumş cihazları cihazlarDown gridine eklediğim metot
+        {
+            downCihazlar.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            downCihazlar.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+            downCihazlar.Columns["DownZamani"].DefaultCellStyle.Format = "dd.MM.yyyy HH:mm:ss";
+            downCihazlar.Columns["RecNo"].HeaderText = "Cihaz No";
+            downCihazlar.Columns["IPNo"].HeaderText = "IP Adresi";
+            downCihazlar.Columns["DownZamani"].HeaderText = "Down Zamanı";
+            downCihazlar.Columns["KalanSure"].HeaderText = "Kalan Süre";
+        }
 
-                // Zoom değerini ayarla
-                SetZoom(zoomFactor);
-            }
+        private void InitializePingTimer()
+        {
+            _pingTimer = new Timer { Interval = PING_INTERVAL };
+            _pingTimer.Tick += async (sender, e) => await PingTimer_Tick(sender, e);
+        }
 
-            // Çizgi Gösterme Menüsü ve Alt Menüleri
-            menuCizgiGoster = new ToolStripMenuItem("Çizgileri Göster");
-
-            // Alt menü öğelerini oluşturun
-            menuTumCizgiler = new ToolStripMenuItem("Bütün Çizgileri Göster", null, MenuTumCizgiler_Click)
-            {
-                Checked = tumCizgileriGoster,
-                CheckOnClick = true
-            };
-            menuTumCihazlar = new ToolStripMenuItem("Bütün Cihazları Göster", null, MenuTumCihazlar_Click)
-            {
-                Checked = tumCizgileriGoster,
-                CheckOnClick = true
-            };
-
-
-            menuSwitchKamera = new ToolStripMenuItem("Switch-Kamera Çizgilerini Göster", null, MenuSwitchKamera_Click)
-            {
-                Checked = switchKameraCizgileriGoster,
-                CheckOnClick = true
-            };
-
-            menuSwitchYazici = new ToolStripMenuItem("Switch-Yazıcı Çizgilerini Göster", null, MenuSwitchYazici_Click)
-            {
-                Checked = switchYaziciCizgileriGoster,
-                CheckOnClick = true
-            };
-
-            menuSwitchKGS = new ToolStripMenuItem("Switch-KGS Çizgilerini Göster", null, MenuSwitchKGS_Click)
-            {
-                Checked = switchKGSCizgileriGoster,
-                CheckOnClick = true
-            };
-
-            // Alt menüleri ana çizgi menüsüne ekleyin
-            menuCizgiGoster.DropDownItems.AddRange(new ToolStripItem[]
-            {
-                menuTumCizgiler,
-                menuSwitchKamera,
-                menuSwitchYazici,
-                menuSwitchKGS
-            });
-
-            // Ana Menü: Cihazları Göster
-            var menuCihazlariGoster = new ToolStripMenuItem("Cihazları Göster");
-
-            // Alt Menüler
-            menuKGS = new ToolStripMenuItem("KGS Cihazlarını Göster", null, MenuKGS_Click)
-            {
-                CheckOnClick = true
-            };
-
-            menuYazici = new ToolStripMenuItem("Yazıcıları Göster", null, MenuYazici_Click)
-            {
-                CheckOnClick = true
-            };
-
-            menuEnerjiPanosu = new ToolStripMenuItem("Enerji Panolarını Göster", null, menuEnerjiPanosu_Click)
-            {
-                CheckOnClick = true
-            };
-
-            menuSwitchGöster = new ToolStripMenuItem("Data Switchleri Göster", null, menuSwitchGöster_Click)
-            {
-                CheckOnClick = true
-            };
-
-            menuPLC = new ToolStripMenuItem("PLC'leri Göster", null, menuPLC_Click)
-            {
-                CheckOnClick = true
-            };
-
-            menuBilgisayar = new ToolStripMenuItem("Bilgisayarları Göster", null, menuBilgisayar_Click)
-            {
-                CheckOnClick = true
-            };
-
-            menuDownCihazlar = new ToolStripMenuItem("Down Cihazları Göster", null, menuDownCihazlar_Click)
-            {
-                CheckOnClick = true
-            };
-
-            // Alt Menüler Ana Menüye Eklendi
-            menuCihazlariGoster.DropDownItems.AddRange(new ToolStripItem[]
-            {
-                menuTumCihazlar,
-                menuKGS,
-                menuYazici,
-                menuEnerjiPanosu,
-                menuSwitchGöster,
-                menuPLC,
-                menuBilgisayar,
-                menuDownCihazlar
-            });
-
-            // Harita Menüsüne Ana Menüyü Ekleyin
-            haritaMenu.Items.AddRange(new ToolStripItem[]
-            {
-                menuZoom,
-                menuCizgiGoster,
-                menuCihazlariGoster
-            });
-
-            string imagePath = @"C:\Users\ebildik\Desktop\Genel Layout.PNG";
+        private async Task PingTimer_Tick(object sender, EventArgs e)//her bir saniyede ping atılan cihazdan dönen bilgiyi alıyorum
+        {
             try
             {
-                backgroundImage = Image.FromFile(imagePath);
-                originalImageSize = backgroundImage.Size;
-                panel1.AutoScrollMinSize = originalImageSize;
+                MesajlarRchTxt.Clear();
+
+                await Task.Run(() =>
+                {
+                    Invoke(new Action(() =>
+                    {
+                        DataTable dt = VeriErisim.VerileriGetir();
+                        Cihazlar.DataSource = dt;
+                        ConfigureDevicesGridView();
+                    }));
+                });
+
+                var tasks = new List<Task>();
+
+                foreach (DataGridViewRow row in Cihazlar.Rows)
+                {
+                    tasks.Add(ProcessDeviceRowAsync(row));
+                }
+
+                await Task.WhenAll(tasks);
+
+                await UpdateUIAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Arka plan resmi yüklenirken hata oluştu: " + ex.Message,
-                    "Resim Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-
-            VeritabanindanCihazlariYukle();
-            durumGuncellemeTimer = new Timer { Interval = 1000 };
-            durumGuncellemeTimer.Tick += (s, e) => VeritabanindanCihazlariYukle();
-            durumGuncellemeTimer.Start();
-        }
-        private void MenuTumCihazlar_Click(object sender, EventArgs e)
-        {
-            tumCihazlarıGoster = ((ToolStripMenuItem)sender).Checked;
-
-            if (tumCihazlarıGoster)
-            {
-                cihazlar = new List<CihazBilgi>(tumCihazlar); // Tüm cihazları göster
-            }
-            else
-            {
-                cihazlar = new List<CihazBilgi>(); // Hiçbir cihazı gösterme
-            }
-
-            panel1.Invalidate();
-        }
-
-        // Yeni eklenen metotlar - Çizgi gösterme ayarları için
-        private void MenuTumCizgiler_Click(object sender, EventArgs e)
-        {
-            tumCizgileriGoster = ((ToolStripMenuItem)sender).Checked;
-            cizgileriGoster = tumCizgileriGoster;
-
-            if (tumCizgileriGoster)
-            {
-                // Tüm çizgiler gösterilecekse diğer çizgi seçeneklerini devre dışı bırak
-                switchKameraCizgileriGoster = false;
-                switchYaziciCizgileriGoster = false;
-                switchKGSCizgileriGoster = false;
-
-                // Diğer menülerin işaretlerini kaldır
-                menuSwitchKamera.Checked = false;
-                menuSwitchYazici.Checked = false;
-                menuSwitchKGS.Checked = false;
-            }
-            panel1.Invalidate(); // Panel'i yeniden çiz
-        }
-
-        private void MenuSwitchKamera_Click(object sender, EventArgs e)
-        {
-            switchKameraCizgileriGoster = ((ToolStripMenuItem)sender).Checked;
-
-            if (switchKameraCizgileriGoster)
-            {
-                // Özel bir çizgi seçilirse tüm çizgileri devre dışı bırak
-                tumCizgileriGoster = false;
-                menuTumCizgiler.Checked = false;
-            }
-
-            // Herhangi bir çizgi seçiliyse, cizgileriGoster'i aktif et, hiçbiri seçili değilse kapat
-            cizgileriGoster = switchKameraCizgileriGoster || switchYaziciCizgileriGoster ||
-                              switchKGSCizgileriGoster || tumCizgileriGoster;
-
-            panel1.Invalidate();
-        }
-
-        private void MenuSwitchYazici_Click(object sender, EventArgs e)
-        {
-            switchYaziciCizgileriGoster = ((ToolStripMenuItem)sender).Checked;
-
-            if (switchYaziciCizgileriGoster)
-            {
-                // Özel bir çizgi seçilirse tüm çizgileri devre dışı bırak
-                tumCizgileriGoster = false;
-                menuTumCizgiler.Checked = false;
-            }
-
-            // Herhangi bir çizgi seçiliyse, cizgileriGoster'i aktif et, hiçbiri seçili değilse kapat
-            cizgileriGoster = switchKameraCizgileriGoster || switchYaziciCizgileriGoster ||
-                              switchKGSCizgileriGoster || tumCizgileriGoster;
-
-            panel1.Invalidate();
-        }
-
-        private void MenuSwitchKGS_Click(object sender, EventArgs e)
-        {
-            switchKGSCizgileriGoster = ((ToolStripMenuItem)sender).Checked;
-
-            if (switchKGSCizgileriGoster)
-            {
-                // Özel bir çizgi seçilirse tüm çizgileri devre dışı bırak
-                tumCizgileriGoster = false;
-                menuTumCizgiler.Checked = false;
-            }
-
-            // Herhangi bir çizgi seçiliyse, cizgileriGoster'i aktif et, hiçbiri seçili değilse kapat
-            cizgileriGoster = switchKameraCizgileriGoster || switchYaziciCizgileriGoster ||
-                              switchKGSCizgileriGoster || tumCizgileriGoster;
-
-            panel1.Invalidate();
-        }
-
-        private void menuDownCihazlar_Click(object sender, EventArgs e)
-        {
-            if (menuDownCihazlar.Checked)
-            {
-                cihazlar = tumCihazlar
-                    .Where(c => !string.IsNullOrEmpty(c.Durum) &&
-                                c.Durum.IndexOf("Down", StringComparison.OrdinalIgnoreCase) >= 0)
-                    .ToList();
-                panel1.Invalidate();
-            }
-            else
-            {
-                cihazlar = new List<CihazBilgi>(tumCihazlar);
-            }
-            panel1.Invalidate();
-        }
-
-        private void menuPLC_Click(object sender, EventArgs e)
-        {
-            if (menuPLC.Checked)
-            {
-                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("PLC", StringComparison.OrdinalIgnoreCase)).ToList();
-            }
-            else
-            {
-                cihazlar = new List<CihazBilgi>(tumCihazlar);
-            }
-            panel1.Invalidate();
-        }
-
-        private void Panel1_MouseUp(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                // Menü gösterilmeden önce çizgi seçeneklerinin durumlarını ayarla
-                menuTumCizgiler.Checked = tumCizgileriGoster;
-                menuSwitchKamera.Checked = switchKameraCizgileriGoster;
-                menuSwitchYazici.Checked = switchYaziciCizgileriGoster;
-                menuSwitchKGS.Checked = switchKGSCizgileriGoster;
-
-                haritaMenu.Show(panel1, e.Location);
-            }
-
-            if (isPanning)
-            {
-                isPanning = false;
-                panel1.Cursor = Cursors.Default;
+                LogMessage($"[{DateTime.Now:HH:mm:ss}] Hata: {ex.Message}", Color.Red);
             }
         }
 
-        private void menuSwitchGöster_Click(object sender, EventArgs e)
+        private async Task UpdateUIAsync()//Görünümü yenile
         {
-            if (menuSwitchGöster.Checked)
+            await Task.Run(() =>
             {
-                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Data Switch", StringComparison.OrdinalIgnoreCase)).ToList();
-            }
-            else
-            {
-                cihazlar = new List<CihazBilgi>(tumCihazlar);
-            }
-            panel1.Invalidate();
-        }
-
-        private void menuBilgisayar_Click(object sender, EventArgs e)
-        {
-            if (menuBilgisayar.Checked)
-            {
-                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Bilgisayarlar", StringComparison.OrdinalIgnoreCase)).ToList();
-            }
-            else
-            {
-                cihazlar = new List<CihazBilgi>(tumCihazlar);
-            }
-            panel1.Invalidate();
-        }
-
-        private void menuEnerjiPanosu_Click(object sender, EventArgs e)
-        {
-            if (menuEnerjiPanosu.Checked)
-            {
-                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Enerji panosu", StringComparison.OrdinalIgnoreCase)).ToList();
-            }
-            else
-            {
-                cihazlar = new List<CihazBilgi>(tumCihazlar);
-            }
-            panel1.Invalidate();
-        }
-
-
-        private void MenuKGS_Click(object sender, EventArgs e)
-        {
-            if (menuKGS.Checked)
-            {
-                menuYazici.Checked = false;
-                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("KGS", StringComparison.OrdinalIgnoreCase)).ToList();
-            }
-            else
-            {
-                cihazlar = new List<CihazBilgi>(tumCihazlar);
-            }
-            panel1.Invalidate();
-        }
-
-        private void MenuYazici_Click(object sender, EventArgs e)
-        {
-            if (menuYazici.Checked)
-            {
-                menuKGS.Checked = false;
-                cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Yazıcı", StringComparison.OrdinalIgnoreCase)).ToList();
-            }
-            else
-            {
-                cihazlar = new List<CihazBilgi>(tumCihazlar);
-            }
-            panel1.Invalidate();
-        }
-
-        private void SetZoom(float factor)
-        {
-            zoomFactor = Math.Min(Math.Max(factor, minZoom), maxZoom);
-
-            int genislik = Math.Max((int)(originalImageSize.Width * zoomFactor), panel1.ClientSize.Width + 1);
-            int yukseklik = Math.Max((int)(originalImageSize.Height * zoomFactor), panel1.ClientSize.Height + 1);
-            panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
-
-            panel1.AutoScrollPosition = new Point(MousePosition.X, MousePosition.Y); // mouse'un x ve y konumumuna göre yapacak
-            panel1.Invalidate();
-        }
-
-        private void Harita_Paint(object sender, PaintEventArgs e)
-        {
-            var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
-            var transformMatrix = new Matrix();
-            transformMatrix.Scale(zoomFactor, zoomFactor);
-            transformMatrix.Translate(panel1.AutoScrollPosition.X / zoomFactor, panel1.AutoScrollPosition.Y / zoomFactor);
-            g.Transform = transformMatrix;
-
-            if (backgroundImage != null)
-            {
-                g.DrawImage(backgroundImage, 0, 0, this.Width, this.Height);
-            }
-
-            DrawConnections(g);
-
-            foreach (var cihaz in cihazlar)
-            {
-                if (!clientleriGoster && !IsAllowedDeviceType(cihaz.GrupKod))
-                    continue;
-
-                string pngFilePath = GetPngFilePath(cihaz.GrupKod);
-                if (!File.Exists(pngFilePath))
-                    continue;
-
-                using (Image cihazImage = Image.FromFile(pngFilePath))
+                Invoke(new Action(() =>
                 {
-                    using (Bitmap coloredImage = new Bitmap(cihazImage.Width, cihazImage.Height))
-                    using (Graphics imageGraphics = Graphics.FromImage(coloredImage))
-                    {
-                        imageGraphics.DrawImage(cihazImage, 0, 0, cihazImage.Width, cihazImage.Height);
+                    Cihazlar.Refresh();
+                    HücreRenkleme.DurumRenklendir(Cihazlar);
+                    UpdateDownDevicesRemainingTime();
+                }));
+            });
+        }
 
-                        Color tintColor;
-                        if (cihaz.GrupKod == "Enerji panosu")
+        private async Task ProcessDeviceRowAsync(DataGridViewRow row)
+        {
+            try
+            {
+                if (row.Cells["Durum"].Value == null) return;
+
+                int cihazRecNo = Convert.ToInt32(row.Cells["RecNo"].Value);
+                int cihazGrupRecNo = Convert.ToInt32(row.Cells["GrupRecNo"].Value);
+                string ip = row.Cells["IPNo"].Value?.ToString();
+                string aciklama = row.Cells["Aciklama"].Value?.ToString();
+
+                await Task.Run(() => Invoke(new Action(() => row.DefaultCellStyle.BackColor = Color.Yellow)));
+
+                bool pingResult = await SendPingAsync(ip);
+                await UpdateDeviceStatusAsync(row, cihazRecNo, cihazGrupRecNo, ip, aciklama, pingResult);
+            }
+            catch (Exception ex)
+            {
+                await Task.Run(() => Invoke(new Action(() =>
+                    LogMessage($"[{DateTime.Now:HH:mm:ss}] Hata: {ex.Message}", Color.Red)
+                )));
+            }
+        }
+
+        private async Task<bool> SendPingAsync(string ip)
+        {
+            try
+            {
+                using (Ping ping = new Ping())
+                {
+                    PingReply reply = await ping.SendPingAsync(ip, PING_TIMEOUT);
+                    return reply.Status == IPStatus.Success;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private async Task UpdateDeviceStatusAsync(DataGridViewRow row, int cihazRecNo, int cihazGrupRecNo,
+           string ip, string aciklama, bool isOnline)
+        {
+            if (isOnline)
+            {
+                await HandleDeviceOnlineAsync(row, cihazRecNo, ip);
+            }
+            else
+            {
+                await HandleDeviceOfflineAsync(row, cihazRecNo, cihazGrupRecNo, ip, aciklama);
+            }
+        }
+
+        private async Task HandleDeviceOnlineAsync(DataGridViewRow row, int cihazRecNo, string ip)
+        {
+            await Task.Run(() =>
+            {
+                Invoke(new Action(() =>
+                {
+                    row.Cells["Durum"].Value = "UP";
+                    row.DefaultCellStyle.BackColor = Color.Green;
+                    LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Up durumunda.", Color.Green);
+                    RemoveFromDownDevices(cihazRecNo);
+                }));
+            });
+
+            await Task.Run(() => DBHelper.GuncelleDurum(cihazRecNo, "UP"));
+        }
+
+        private async Task HandleDeviceOfflineAsync(DataGridViewRow row, int cihazRecNo,
+    int cihazGrupRecNo, string ip, string aciklama)
+        {
+            await Task.Run(() =>
+            {
+                Invoke(new Action(() =>
+                {
+                    try
+                    {
+                        if (row.DataGridView != null && row.DataGridView.Columns.Contains("Durum"))
                         {
-                            tintColor = Color.FromArgb(170, Color.Orange);
-                        }
-                        else if (!string.IsNullOrEmpty(cihaz.Durum) &&
-                            cihaz.Durum.IndexOf("UP", StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            tintColor = Color.FromArgb(170, Color.Green);
-                        }
-                        else if (!string.IsNullOrEmpty(cihaz.Durum) &&
-                                 cihaz.Durum.IndexOf("Down", StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            tintColor = Color.FromArgb(170, Color.Red);
+                            row.Cells["Durum"].Value = "Down oldu, mail atılacak";
                         }
                         else
                         {
-                            tintColor = Color.FromArgb(170, Color.BlueViolet);
+                            LogMessage($"[{DateTime.Now:HH:mm:ss}] 'Durum' sütunu bulunamadı!", Color.Red);
                         }
 
-                        using (Brush overlay = new SolidBrush(tintColor))
-                            imageGraphics.FillRectangle(overlay, 0, 0, coloredImage.Width, coloredImage.Height);
-
-                        float iconSize = 8;
-                        RectangleF cihazRect = new RectangleF(
-                            cihaz.X - iconSize / 2,
-                            cihaz.Y - iconSize / 2,
-                            iconSize, iconSize);
-
-                        g.DrawImage(coloredImage,
-                            new Rectangle((int)cihazRect.X, (int)cihazRect.Y, (int)cihazRect.Width, (int)cihazRect.Height));
+                        row.DefaultCellStyle.BackColor = Color.Red;
+                        LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu.", Color.Red);
+                        AddToDownDevices(cihazRecNo, cihazGrupRecNo, ip, aciklama);
                     }
-                }
-            }
+                    catch (Exception ex)
+                    {
+                        LogMessage($"[{DateTime.Now:HH:mm:ss}] Hata: {ex.Message}", Color.Red);
+                    }
+                }));
+            });
+
+            await Task.Run(() =>
+            {
+                DBHelper.GuncelleDurum(cihazRecNo, "Down oldu, mail atılacak");
+                DBHelper.CihazDownKaydi(cihazRecNo);
+            });
         }
 
-        private void Harita_MouseClick(object sender, MouseEventArgs e)
-        {
-            Point scrollPos = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
-            float docX = (e.X + scrollPos.X) / zoomFactor;
-            float docY = (e.Y + scrollPos.Y) / zoomFactor;
-
-            CihazBilgi enYakinCihaz = null;
-            double enKucukMesafe = double.MaxValue;
-
-            foreach (var cihaz in cihazlar)
+        private void AddToDownDevices(int cihazRecNo, int grupRecNo, string ip, string aciklama)
+        {//durum kolonunda down olanları downCihazlar gridine aldım
+            foreach (DataRow row in _downCihazlarTable.Rows)
             {
-                double dx = docX - cihaz.X;
-                double dy = docY - cihaz.Y;
-                double distance = Math.Sqrt(dx * dx + dy * dy);
-                float clickRadius = pointRadius + 12;
+                if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
+                    return;
+            }
+            int beklemeSuresi = DBHelper.GetMailBeklemeSuresi(grupRecNo);
+            DateTime downZamani = DateTime.Now;
 
-                if (distance <= clickRadius && distance < enKucukMesafe)
-                {
-                    enKucukMesafe = distance;
-                    enYakinCihaz = cihaz;
-                }
-            }
+            DataRow newRow = _downCihazlarTable.NewRow();
+            newRow["RecNo"] = cihazRecNo;
+            newRow["GrupRecNo"] = grupRecNo;
+            newRow["IPNo"] = ip;
+            newRow["Aciklama"] = aciklama;
+            newRow["DownZamani"] = downZamani;
+            newRow["BeklemeSuresi"] = beklemeSuresi;
+            newRow["KalanSure"] = beklemeSuresi.ToString() + " dk";
+            newRow["Durum"] = "Mail bekleniyor";
+            _downCihazlarTable.Rows.Add(newRow);
 
-            if (enYakinCihaz != null)
-            {
-                if (e.Button == MouseButtons.Left)
-                {
-                    GuncelCihazBilgisiGoster(enYakinCihaz.RecNo);
-                }
-                // Sağ tıkta menü açılıyor
-            }
-            else if (e.Button == MouseButtons.Left)
-            {
-                KonumEkle konumForm = new KonumEkle(docX, docY);
-                konumForm.ShowDialog();
-            }
+            StartDownDeviceTimer(cihazRecNo, grupRecNo, beklemeSuresi, downZamani, ip, aciklama);
+            LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down listesine eklendi. Bekleme süresi: {beklemeSuresi} dk", Color.Orange);
         }
 
-        private bool IsAllowedDeviceType(string grupKod)//cihazları buraya gireceğiz
+        private void StartDownDeviceTimer(int cihazRecNo, int grupRecNo, int beklemeSuresi,DateTime downZamani, string ip, string aciklama)
         {
-            string[] allowedDeviceTypes = {
-                "KGS", "Yazıcı", "Kamera", "Data Switch", "Enerji panosu", "Bilgisayarlar", "PLC", "Kamera Switch"
+            if (_downCihazTimers.ContainsKey(cihazRecNo))
+            {
+                _downCihazTimers[cihazRecNo].Stop();
+                _downCihazTimers[cihazRecNo].Dispose();
+                _downCihazTimers.Remove(cihazRecNo);
+            }
+            Timer cihazTimer = new Timer { Interval = 1000 }; // Her saniye kontrol
+            int kalanSaniye = beklemeSuresi * 60;
+            cihazTimer.Tick += (sender, e) =>
+            {
+                kalanSaniye--;
+                UpdateRemainingTime(cihazRecNo, kalanSaniye);
+                UpdateDownDevicesRemainingTime();
+
+                if (kalanSaniye <= 0)
+                {
+                    cihazTimer.Stop();
+                    cihazTimer.Dispose();
+                    _downCihazTimers.Remove(cihazRecNo);
+                }
             };
-            foreach (var type in allowedDeviceTypes)
-            {
-                if (string.Equals(type, grupKod, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-            return false;
+
+            cihazTimer.Start();
+            _downCihazTimers.Add(cihazRecNo, cihazTimer);
         }
-
-        private string GetPngFilePath(string grupKod)
-        {
-            string basePath = @"C:\Users\ebildik\Desktop\PNG";
-            string fileName = $"{grupKod}.png";
-            return Path.Combine(basePath, fileName);
-        }
-
-        private void DrawConnections(Graphics g)
-        {
-            float baseSwitchLineWidth = 2.0f;
-            float baseRedLineWidth = 2.0f;
-            float baseBrownLineWidth = 2.0f;
-            float switchLineWidth = baseSwitchLineWidth / zoomFactor;
-            float redLineWidth = baseRedLineWidth / zoomFactor;
-            float brownLineWidth = baseBrownLineWidth / zoomFactor;
-
-            if (enerjiPanolariniGoster)
-            {
-                foreach (var cihaz in cihazlar)
-                {
-                    if (!string.IsNullOrEmpty(cihaz.EnerjiPanoNo))
-                    {
-                        var enerjiPanosu = cihazlar.FirstOrDefault(p => p.Aciklama == cihaz.EnerjiPanoNo && p.GrupKod == "Enerji panosu");
-                        if (enerjiPanosu != null)
-                        {
-                            using (Pen redPen = new Pen(Color.Red, redLineWidth))
-                                g.DrawLine(redPen, cihaz.X, cihaz.Y, enerjiPanosu.X, enerjiPanosu.Y);
-                        }
-                    }
-                }
-            }
-
-            if (cizgileriGoster) // ÇİZGİLER BURADA ÇİZİLİYOR
-            {
-                foreach (var cihaz in cihazlar)
-                {
-                    if (cihaz.SwitchRecNo != 0 && cihaz.GrupKod != "Enerji panosu")
-                    {
-                        var switchCihaz = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
-                        if (switchCihaz != null)
-                        {
-                            // Hangi çizgilerin gösterileceğine karar ver
-                            bool cizgiCizilecek = tumCizgileriGoster;
-
-                            // Filtrelemeleri uygula
-                            if (!cizgiCizilecek)
-                            {
-                                if (switchKameraCizgileriGoster && cihaz.GrupKod == "Kamera")
-                                    cizgiCizilecek = true;
-
-                                if (switchYaziciCizgileriGoster && cihaz.GrupKod == "Yazıcı")
-                                    cizgiCizilecek = true;
-
-                                if (switchKGSCizgileriGoster && cihaz.GrupKod == "KGS")
-                                    cizgiCizilecek = true;
-                            }
-
-                            if (cizgiCizilecek)
-                            {
-                                Color renk = Color.BlueViolet;
-                                if (cihaz.GrupKod == "Kamera")
-                                    renk = Color.Chartreuse;//Fosforlu sarı
-                                else if (cihaz.GrupKod == "Yazıcı")
-                                    renk = Color.DarkOrange;
-                                else if (cihaz.GrupKod == "KGS")
-                                    renk = Color.Fuchsia;
-
-                                using (Pen kalem = new Pen(renk, switchLineWidth))
-                                    g.DrawLine(kalem, switchCihaz.X, switchCihaz.Y, cihaz.X, cihaz.Y);
-                            }
-                        }
-                    }
-                }
-
-                // Switch-Switch bağlantıları her zaman göster
-                if (tumCizgileriGoster)
-                {
-                    foreach (var cihaz in cihazlar)
-                    {
-                        if (cihaz.GrupKod == "Data Switch" || cihaz.GrupKod == "Kamera Switch")
-                        {
-                            var bagliSwitch = cihazlar.FirstOrDefault(s => s.RecNo == cihaz.SwitchRecNo && (s.GrupKod == "Data Switch" || s.GrupKod == "Kamera Switch"));
-                            if (bagliSwitch != null)
-                            {
-                                using (Pen kahverengiKalem = new Pen(Color.Brown, brownLineWidth))
-                                    g.DrawLine(kahverengiKalem, cihaz.X, cihaz.Y, bagliSwitch.X, bagliSwitch.Y);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        public class CihazBilgi
-        {
-            public int RecNo { get; set; }
-            public int X { get; set; }
-            public int Y { get; set; }
-            public string IPNo { get; set; }
-            public string Aciklama { get; set; }
-            public string Durum { get; set; }
-            public string MarkaModel { get; set; }
-            public int SwitchRecNo { get; set; }
-            public string GrupKod { get; set; }
-            public string EnerjiPanoNo { get; set; }
-            public Color PointColor { get; set; } = Color.Black;
-        }
-        private void VeritabanindanCihazlariYukle()
+       private async void SendMailAndUpdateStatus(int cihazRecNo, int grupRecNo, string ip,string aciklama, DateTime downZamani, double gecenDakika)
         {
             try
             {
-                var yeniCihazlar = new List<CihazBilgi>();
+                string mailAdres = DBHelper.GetMailAdres(grupRecNo);
+                string konu = $"[CIHAZA ERISILEMIYOR] {aciklama}";
+                string icerik = $"{aciklama} cihazı {downZamani} tarihinde erişilemez oldu.\n" +
+                                $"{gecenDakika:F1} dakikadır bağlantı sağlanamıyor.\nIP Adresi: {ip}";
 
-                using (SqlConnection connection = new SqlConnection(connectionString))
+                await MailHelper.GonderAsync(mailAdres, konu, icerik, cihazRecNo);
+                await Task.Run(() => DBHelper.GuncelleDurum(cihazRecNo, "Down durumda, mail gönderildi"));
+
+                UpdateStatusAfterMailSent(cihazRecNo, ip, konu, mailAdres);
+
+                // Durumu güncelle
+                foreach (DataRow row in _downCihazlarTable.Rows)
                 {
-                    string query = @"
-            SELECT c.RecNo, c.X, c.Y, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel, 
-                   c.SwitchRecNo, cg.Kod AS GrupKod, c.EnerjiPanoNo
-            FROM Cihaz c
-            INNER JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
-            WHERE c.X IS NOT NULL AND c.Y IS NOT NULL";
-
-                    using (SqlCommand command = new SqlCommand(query, connection))
+                    if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
                     {
-                        connection.Open();
-                        using (SqlDataReader reader = command.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                yeniCihazlar.Add(new CihazBilgi
-                                {
-                                    RecNo = reader.GetInt32(0),
-                                    X = reader.GetInt32(1),
-                                    Y = reader.GetInt32(2),
-                                    IPNo = reader.IsDBNull(3) ? "N/A" : reader.GetString(3),
-                                    Aciklama = reader.IsDBNull(4) ? "N/A" : reader.GetString(4),
-                                    Durum = reader.IsDBNull(5) ? "N/A" : reader.GetString(5),
-                                    MarkaModel = reader.IsDBNull(6) ? "N/A" : reader.GetString(6),
-                                    SwitchRecNo = reader.GetInt32(7),
-                                    GrupKod = reader.GetString(8),
-                                    EnerjiPanoNo = reader.IsDBNull(9) ? null : reader.GetString(9)
-                                });
-                            }
-                        }
-                    }
-                }
-
-                bool degisiklikVar = !tumCihazlar.SequenceEqual(yeniCihazlar, new CihazBilgiComparer());
-                if (degisiklikVar)
-                {
-                    tumCihazlar = yeniCihazlar;
-
-                    // KGS veya Yazıcı filtresi aktifse ona göre cihazları göster
-                    if (menuKGS != null && menuKGS.Checked)
-                        cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("KGS", StringComparison.OrdinalIgnoreCase)).ToList();
-                    else if (menuYazici != null && menuYazici.Checked)
-                        cihazlar = tumCihazlar.Where(c => c.GrupKod.Equals("Yazıcı", StringComparison.OrdinalIgnoreCase)).ToList();
-                    else
-                        cihazlar = new List<CihazBilgi>(tumCihazlar);
-
-                    panel1.Invalidate();
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Cihazlar yüklenirken hata oluştu: " + ex.Message,
-                    "Veritabanı Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        public class CihazBilgiComparer : IEqualityComparer<CihazBilgi>
-        {
-            public bool Equals(CihazBilgi x, CihazBilgi y)
-            {
-                return x.RecNo == y.RecNo &&
-                       x.X == y.X &&
-                       x.Y == y.Y &&
-                       x.IPNo == y.IPNo &&
-                       x.Aciklama == y.Aciklama &&
-                       x.Durum == y.Durum &&
-                       x.MarkaModel == y.MarkaModel &&
-                       x.SwitchRecNo == y.SwitchRecNo &&
-                       x.GrupKod == y.GrupKod &&
-                       x.EnerjiPanoNo == y.EnerjiPanoNo;
-            }
-            public int GetHashCode(CihazBilgi obj)
-            {
-                return obj.RecNo.GetHashCode();
-            }
-        }
-        private void GuncelCihazBilgisiGoster(int cihazRecNo)
-        {
-            try
-            {
-                using (SqlConnection connection = new SqlConnection(connectionString))
-                {
-                    string query = @"
-                SELECT c.RecNo, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel,
-                       c.SwitchPortNo, c.EnerjiPanoNo, c.EnerjiPanoSigortaNo,
-                       c.X, c.Y,
-                       cg.Aciklama as GrupAdi
-                FROM Cihaz c
-                LEFT JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
-                WHERE c.RecNo = @RecNo";
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue("@RecNo", cihazRecNo);
-                        connection.Open();
-                        using (SqlDataReader reader = command.ExecuteReader())
-                        {
-                            if (reader.Read())
-                            {
-                                StringBuilder sb = new StringBuilder();
-                                sb.AppendLine($"IP: {reader["IPNo"] ?? "N/A"}");
-                                sb.AppendLine($"Cihaz: {reader["Aciklama"] ?? "N/A"}");
-                                sb.AppendLine($"Durum: {reader["Durum"]?.ToString() ?? "N/A"}");
-                                sb.AppendLine($"Model: {reader["MarkaModel"] ?? "N/A"}");
-                                sb.AppendLine($"Grup: {reader["GrupAdi"] ?? "N/A"}");
-                                sb.AppendLine($"Switch Port: {reader["SwitchPortNo"] ?? "N/A"}");
-                                sb.AppendLine($"Enerji Pano: {reader["EnerjiPanoNo"] ?? "N/A"}");
-                                sb.AppendLine($"Sigorta No: {reader["EnerjiPanoSigortaNo"] ?? "N/A"}");
-                                sb.AppendLine($"X Koordinat: {reader["X"] ?? "N/A"}");
-                                sb.AppendLine($"Y Koordinat: {reader["Y"] ?? "N/A"}");
-                                MessageBox.Show(sb.ToString(), "Cihaz Bilgisi", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            }
-                            else
-                            {
-                                MessageBox.Show("Cihaz bilgisi bulunamadı.", "Bilgi", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            }
-                        }
+                        row["Durum"] = "Mail gönderildi";
+                        break;
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Cihaz bilgisi alınırken hata oluştu: " + ex.Message,
-                    "Veritabanı Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogMessage($"[{DateTime.Now:HH:mm:ss}] Mail gönderirken hata: {ex.Message}. IP Adresi: {ip}", Color.Red);
             }
         }
-        private void Harita_Load_1(object sender, EventArgs e)
+
+        private void UpdateStatusAfterMailSent(int cihazRecNo, string ip, string konu, string mailAdres)//Mail gönderildikten sonra cihazın durum kolonunu güncelliyoruz.
         {
-            this.cihazGrupTableAdapter.Fill(this.kodlariGetir.CihazGrup);
-        }
-        private void Harita_Resize(object sender, EventArgs e)
-        {
-            if (backgroundImage != null)
+            foreach (DataRow row in _downCihazlarTable.Rows)
             {
-                int genislik = Math.Max((int)(originalImageSize.Width * zoomFactor), panel1.ClientSize.Width + 1);
-                int yukseklik = Math.Max((int)(originalImageSize.Height * zoomFactor), panel1.ClientSize.Height + 1);
-                panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
-            }
-            panel1.Invalidate();
-        }
-        private void Panel1_MouseDown(object sender, MouseEventArgs e)
-        {
-            if (ctrlPressed && e.Button == MouseButtons.Left)
-            {
-                isPanning = true;
-                panStartMouse = e.Location;
-                panStartScroll = new Point(-panel1.AutoScrollPosition.X, -panel1.AutoScrollPosition.Y);
-                panel1.Cursor = Cursors.Hand;
-            }
-        }
-        private void Panel1_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (isPanning)
-            {
-                int dx = e.X - panStartMouse.X;
-                int dy = e.Y - panStartMouse.Y;
-                int newScrollX = panStartScroll.X - dx;
-                int newScrollY = panStartScroll.Y - dy;
-                panel1.AutoScrollPosition = new Point(newScrollX, newScrollY);
-            }
-        }
-        private void Panel1_MouseWheel(object sender, MouseEventArgs e)
-        {
-          
-            if (!ctrlPressed)
-            {
-                
-                if (e is HandledMouseEventArgs hme)
-                    hme.Handled = false;
-                return;
+                if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
+                {
+                    row["Durum"] = "Mail gönderildi";
+                    break;
+                }
             }
 
-            float oldZoom = zoomFactor;
+            foreach (DataGridViewRow row in Cihazlar.Rows)
+            {
+                if (Convert.ToInt32(row.Cells["RecNo"].Value) == cihazRecNo)
+                {
+                    row.Cells["Durum"].Value = "Down mail atıldı";
+                    break;
+                }
+            }
 
-            if (e.Delta > 0 && zoomFactor < maxZoom)
-                zoomFactor += zoomIncrement;
-            else if (e.Delta < 0 && zoomFactor > minZoom)
-                zoomFactor -= zoomIncrement;
+            AddNotification($"[{DateTime.Now:HH:mm:ss}] {ip} için mail gönderildi. Konu: {konu}, Adres: {mailAdres}");
+            LogMessage($"[{DateTime.Now:HH:mm:ss}] {ip} için bekleme süresi aşıldı. Mail gönderildi ve durum güncellendi. IP Adresi: {ip}", Color.Orange);
+        }
+
+        private void UpdateRemainingTime(int cihazRecNo, int kalanSaniye)
+        {
+            foreach (DataRow row in _downCihazlarTable.Rows)
+            {
+                if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
+                {
+                    int dakika = kalanSaniye / 60;
+                    int saniye = kalanSaniye % 60;
+                    row["KalanSure"] = $"{dakika:D2}:{saniye:D2}";
+                    break;
+                }
+            }
+        }
+
+        private void UpdateDownDevicesRemainingTime()//Eger cihaza mail gönderilmemişse 
+        {
+            foreach (DataRow row in _downCihazlarTable.Rows)
+            {
+                int cihazRecNo = Convert.ToInt32(row["RecNo"]);
+                if (_downCihazTimers.ContainsKey(cihazRecNo))
+                {
+                    DateTime downZamani = (DateTime)row["DownZamani"];
+                    int beklemeSuresi = Convert.ToInt32(row["BeklemeSuresi"]);
+
+                    TimeSpan gecenSure = DateTime.Now - downZamani;
+                    int kalanSaniye = (beklemeSuresi * 60) - (int)gecenSure.TotalSeconds;
+                    if (kalanSaniye < 0) kalanSaniye = 0;
+
+                    int dakika = kalanSaniye / 60;
+                    int saniye = kalanSaniye % 60;
+                    row["KalanSure"] = $"{dakika:D2}:{saniye:D2}";
+
+                    // Durumu kontrol et, eğer "Mail gönderildi" ise maili tekrar gönderme
+                    string durum = row["Durum"].ToString();
+                    if (kalanSaniye == 0 && durum != "Mail gönderildi")
+                    {
+                        int grupRecNo = Convert.ToInt32(row["GrupRecNo"]);
+                        string ip = row["IPNo"].ToString();
+                        string aciklama = row["Aciklama"].ToString();
+                        SendMailAndUpdateStatus(cihazRecNo, grupRecNo, ip, aciklama, downZamani, beklemeSuresi);
+
+                        // Mail gönderildikten sonra durumu güncelle
+                        row["Durum"] = "Mail gönderildi";
+                    }
+                }
+            }
+
+            downCihazlar.Refresh();
+        }
+
+        private void RemoveFromDownDevices(int cihazRecNo)//cihaz downdan up a geçerse listeden çıkartacağız
+        {
+            DataRow rowToDelete = null;
+            foreach (DataRow row in _downCihazlarTable.Rows)
+            {
+                if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
+                {
+                    rowToDelete = row;
+                    break;
+                }
+            }
+
+            if (rowToDelete != null)
+            {
+                string ip = rowToDelete["IPNo"].ToString();
+
+                if (_downCihazTimers.ContainsKey(cihazRecNo))
+                {
+                    _downCihazTimers[cihazRecNo].Stop();
+                    _downCihazTimers[cihazRecNo].Dispose();
+                    _downCihazTimers.Remove(cihazRecNo);
+                }
+
+                _downCihazlarTable.Rows.Remove(rowToDelete);
+                LogMessage($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı aktif duruma geçti ve down listesinden çıkarıldı.", Color.Green);
+            }
+        }
+
+        private async void PingAtBtn_Click_1(object sender, EventArgs e)
+        {
+            _pingTimer.Start();
+            LogMessage("Ping işlemi başlatılıyor...", Color.Blue);
+
+            var tasks = new List<Task>();
+            foreach (DataGridViewRow row in Cihazlar.Rows)
+            {
+                tasks.Add(ProcessDeviceRowAsync(row));
+            }
+
+            await Task.WhenAll(tasks);
+
+            Invoke(new Action(() =>
+            {
+                Cihazlar.Refresh();
+                downCihazlar.Refresh();
+                HücreRenkleme.DurumRenklendir(Cihazlar);
+            }));
+
+            _pingTimer.Start();
+        }
+        private void LoadDeviceData()//verileri en başta getiren metot
+        {
+            try
+            {
+                DataTable dt = VeriErisim.VerileriGetir();
+                Cihazlar.DataSource = dt;
+
+                ConfigureDevicesGridView();
+                LogMessage("Cihaz verileri başarıyla yüklendi.", Color.Green);
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"Veriler yüklenirken hata oluştu: {ex.Message}", Color.Red);
+                MessageBox.Show("Veriler yüklenirken hata oluştu: " + ex.Message);
+            }
+        }
+
+        private void ConfigureDevicesGridView()
+        {
+            Cihazlar.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            Cihazlar.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+            Cihazlar.Refresh();
+            HücreRenkleme.DurumRenklendir(Cihazlar);
+        }
+
+        private void PingIptalBtn_Click_1(object sender, EventArgs e) // ping atmayı durduran buton
+        {
+            // Öncelikle ping timer'ın çalışıp çalışmadığını kontrol edelim
+            if (_pingTimer.Enabled)
+            {
+                DialogResult result = MessageBox.Show(
+                    "Ping atma işlemini durdurmak istiyor musunuz?",
+                    "İşlem İptali",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (result == DialogResult.Yes)
+                {
+                    _pingTimer.Stop();
+                    LogMessage("Ping işlemi durduruldu.", Color.Blue);
+
+                    foreach (var timer in _downCihazTimers.Values)
+                    {
+                        timer.Stop();
+                    }
+
+                    LogMessage("Tüm geri sayım işlemleri durduruldu.", Color.Blue);
+                }
+                else
+                {
+                    LogMessage("Ping işlemi devam ediyor.", Color.Green);
+                }
+            }
             else
+            {
+                // Ping işlemi zaten çalışmıyor, kullanıcıya bilgi verelim
+                MessageBox.Show(
+                    "Ping atma işlemi henüz başlatılmamış.",
+                    "Bilgi",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                LogMessage("Ping atma işlemi başlatılmamış.", Color.Orange);
+            }
+        }
+
+        private void pictureBox1_Click_1(object sender, EventArgs e)//ping atmayı başlat
+        {
+            LogMessage("Veriler yenileniyor...", Color.Blue);
+            RefreshDeviceData();
+            LogMessage("Veriler başarıyla yenilendi.", Color.Green);
+        }
+
+        private void RefreshDeviceData()
+        {
+            DataTable dt = VeriErisim.VerileriGetir();
+            Cihazlar.DataSource = dt;
+            ConfigureDevicesGridView();
+        }
+
+        private void LogMessage(string text, Color color)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => LogMessage(text, color)));
                 return;
-
-            Point scrollPos = new Point(MousePosition.X, MousePosition.Y);
-            float mouseDocX = (e.X + scrollPos.X) / oldZoom;
-            float mouseDocY = (e.Y + scrollPos.Y) / oldZoom;
-
-            int newMouseScreenX = (int)(mouseDocX * zoomFactor);
-            int newMouseScreenY = (int)(mouseDocY * zoomFactor);
-            int newScrollX = newMouseScreenX - e.X;
-            int newScrollY = newMouseScreenY - e.Y;
-            int genislik = (int)(originalImageSize.Width * zoomFactor);
-            int yukseklik = (int)(originalImageSize.Height * zoomFactor);
-            panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
-            panel1.AutoScrollPosition = new Point(newScrollX, newScrollY);
-            panel1.Invalidate();
-
-
-            if (e is HandledMouseEventArgs hme2)
-                hme2.Handled = true;
+            }
+            MesajlarRchTxt.SelectionStart = MesajlarRchTxt.TextLength;
+            MesajlarRchTxt.SelectionLength = 0;
+            MesajlarRchTxt.SelectionColor = color;
+            MesajlarRchTxt.AppendText(text + Environment.NewLine);
+            MesajlarRchTxt.SelectionColor = MesajlarRchTxt.ForeColor;
+            MesajlarRchTxt.ScrollToCaret();
         }
-        private void Harita_KeyDown(object sender, KeyEventArgs e)
+
+        private void AddNotification(string text)
         {
-            if (e.KeyCode == Keys.ControlKey)
-                ctrlPressed = true;
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => AddNotification(text)));
+                return;
+            }
+
+            rchTextBildirimler.SelectionStart = rchTextBildirimler.TextLength;
+            rchTextBildirimler.SelectionLength = 0;
+            rchTextBildirimler.SelectionColor = Color.Orange;
+            rchTextBildirimler.AppendText(text + Environment.NewLine);
+            rchTextBildirimler.SelectionColor = rchTextBildirimler.ForeColor;
+            rchTextBildirimler.ScrollToCaret();
         }
-        private void Harita_KeyUp(object sender, KeyEventArgs e)
+        private void Form1_Load(object sender, EventArgs e)
         {
-            if (e.KeyCode == Keys.ControlKey)
-                ctrlPressed = false;
+            LogMessage("Uygulama başlatıldı.", Color.Blue);
         }
-        private void Harita_Load(object sender, EventArgs e)
+
+        private void pictureBox2_Click(object sender, EventArgs e)//Cihaz arama kutum
+        {
+            string ipNo = araTxtBox.Text;
+
+            if (string.IsNullOrWhiteSpace(ipNo))
+            {
+                LogMessage("Lütfen bir IP numarası girin.", Color.Red);
+                MessageBox.Show("Lütfen bir IP numarası girin.");
+                return;
+            }
+
+            SearchByIpAddress(ipNo);
+        }
+
+        private void SearchByIpAddress(string ipNo)
+        {
+            LogMessage($"'{ipNo}' IP numarası aranıyor...", Color.Blue);
+
+            try
+            {
+                DataTable dt = VeriErisim.VerileriGetir();
+                string filterExpression = $"IPNo LIKE '%{ipNo}%'";
+                DataRow[] filteredRows = dt.Select(filterExpression);
+
+                DataTable filteredDataTable = dt.Clone();
+                foreach (DataRow row in filteredRows)
+                {
+                    filteredDataTable.ImportRow(row);
+                }
+
+                Cihazlar.DataSource = filteredDataTable;
+                Cihazlar.Refresh();
+                HücreRenkleme.DurumRenklendir(Cihazlar);
+
+                LogMessage($"Arama tamamlandı. {filteredDataTable.Rows.Count} sonuç bulundu.", Color.Green);
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"Filtreleme işlemi sırasında hata oluştu: {ex.Message}", Color.Red);
+                MessageBox.Show("Filtreleme işlemi sırasında hata oluştu: " + ex.Message);
+            }
+        }
+        private void button1_Click(object sender, EventArgs e)//Haritayı görüntüle metot
         {
 
+            Form existingForm = Application.OpenForms.OfType<Harita>().FirstOrDefault();
+
+            if (existingForm != null)
+            { 
+                MessageBox.Show("Harita ekranı zaten açık.", "Bilgi", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (existingForm.WindowState == FormWindowState.Minimized)
+                {
+                    existingForm.WindowState = FormWindowState.Normal; 
+                }
+                existingForm.BringToFront(); 
+                existingForm.Focus(); 
+            }
+            else
+            {
+                Form haritaForm = new Harita();
+                haritaForm.Show();
+            }
         }
 
-        private void bilgiKutusu_Click(object sender, EventArgs e)
-        {
-            Form frm = new Çizgiler();
-            frm.TopMost = true;      // En üstte olsun
-            frm.StartPosition = FormStartPosition.CenterScreen; // (isteğe bağlı) Ortada aç
-            frm.Show();
-
-        }
     }
 }
