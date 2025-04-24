@@ -19,6 +19,7 @@ namespace Cihaz_Takip_Uygulaması
         private Timer durumGuncellemeTimer;
         private bool cizgileriGoster = true;
         private bool tumCizgileriGoster = true;
+        private bool tumCihazlarıGoster = true;
         private bool switchKameraCizgileriGoster = false;
         private bool switchYaziciCizgileriGoster = false;
         private bool switchKGSCizgileriGoster = false;
@@ -58,6 +59,7 @@ namespace Cihaz_Takip_Uygulaması
         private ToolStripMenuItem menuPLC;
         private ToolStripMenuItem menuBilgisayar;
         private ToolStripMenuItem menuDownCihazlar;
+        private ToolStripMenuItem menuTumCihazlar;
 
         public Harita()
         {
@@ -121,6 +123,12 @@ namespace Cihaz_Takip_Uygulaması
                 Checked = tumCizgileriGoster,
                 CheckOnClick = true
             };
+            menuTumCihazlar = new ToolStripMenuItem("Bütün Cihazları Göster", null, MenuTumCihazlar_Click)
+            {
+                Checked=tumCizgileriGoster,
+                CheckOnClick=true
+            };
+
 
             menuSwitchKamera = new ToolStripMenuItem("Switch-Kamera Çizgilerini Göster", null, MenuSwitchKamera_Click)
             {
@@ -191,6 +199,7 @@ namespace Cihaz_Takip_Uygulaması
             // Alt Menüler Ana Menüye Eklendi
             menuCihazlariGoster.DropDownItems.AddRange(new ToolStripItem[]
             {
+                menuTumCihazlar,
                 menuKGS,
                 menuYazici,
                 menuEnerjiPanosu,
@@ -225,6 +234,21 @@ namespace Cihaz_Takip_Uygulaması
             durumGuncellemeTimer = new Timer { Interval = 1000 };
             durumGuncellemeTimer.Tick += (s, e) => VeritabanindanCihazlariYukle();
             durumGuncellemeTimer.Start();
+        }
+        private void MenuTumCihazlar_Click(object sender, EventArgs e)
+        {
+            tumCihazlarıGoster = ((ToolStripMenuItem)sender).Checked;
+
+            if (tumCihazlarıGoster)
+            {
+                cihazlar = new List<CihazBilgi>(tumCihazlar); // Tüm cihazları göster
+            }
+            else
+            {
+                cihazlar = new List<CihazBilgi>(); // Hiçbir cihazı gösterme
+            }
+
+            panel1.Invalidate(); 
         }
 
         // Yeni eklenen metotlar - Çizgi gösterme ayarları için
@@ -391,12 +415,6 @@ namespace Cihaz_Takip_Uygulaması
             panel1.Invalidate();
         }
 
-        // Bu metot artık kullanılmıyor, yerine MenuTumCizgiler_Click kullanılıyor
-        private void MenuCizgiGoster_Click(object sender, EventArgs e)
-        {
-            cizgileriGoster = menuCizgiGoster.Checked;
-            panel1.Invalidate();
-        }
 
         private void MenuKGS_Click(object sender, EventArgs e)
         {
@@ -434,7 +452,7 @@ namespace Cihaz_Takip_Uygulaması
             int yukseklik = Math.Max((int)(originalImageSize.Height * zoomFactor), panel1.ClientSize.Height + 1);
             panel1.AutoScrollMinSize = new Size(genislik, yukseklik);
 
-            panel1.AutoScrollPosition = new Point(0, 0);//burası mouse'ın konumu olacak 
+            panel1.AutoScrollPosition = new Point(750, 750);//burası mouse'ın konumu olacak 
             panel1.Invalidate();
         }
 
@@ -863,6 +881,11 @@ namespace Cihaz_Takip_Uygulaması
         {
             if (e.KeyCode == Keys.ControlKey)
                 ctrlPressed = false;
+        }
+
+        private void Harita_Load(object sender, EventArgs e)
+        {
+
         }
     }
 }
