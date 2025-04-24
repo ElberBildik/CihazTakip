@@ -243,7 +243,7 @@ namespace Cihaz_Takip_Uygulaması
         }
 
         private void StartDownDeviceTimer(int cihazRecNo, int grupRecNo, int beklemeSuresi,
-            DateTime downZamani, string ip, string aciklama)
+     DateTime downZamani, string ip, string aciklama)
         {
             if (_downCihazTimers.ContainsKey(cihazRecNo))
             {
@@ -252,7 +252,7 @@ namespace Cihaz_Takip_Uygulaması
                 _downCihazTimers.Remove(cihazRecNo);
             }
 
-            Timer cihazTimer = new Timer { Interval = 1000 };
+            Timer cihazTimer = new Timer { Interval = 1000 }; // Her saniye kontrol
             int kalanSaniye = beklemeSuresi * 60;
 
             cihazTimer.Tick += (sender, e) =>
@@ -263,7 +263,6 @@ namespace Cihaz_Takip_Uygulaması
 
                 if (kalanSaniye <= 0)
                 {
-                    SendMailAndUpdateStatus(cihazRecNo, grupRecNo, ip, aciklama, downZamani, beklemeSuresi);
                     cihazTimer.Stop();
                     cihazTimer.Dispose();
                     _downCihazTimers.Remove(cihazRecNo);
@@ -274,7 +273,7 @@ namespace Cihaz_Takip_Uygulaması
             _downCihazTimers.Add(cihazRecNo, cihazTimer);
         }
         private async void SendMailAndUpdateStatus(int cihazRecNo, int grupRecNo, string ip,
-            string aciklama, DateTime downZamani, double gecenDakika)
+     string aciklama, DateTime downZamani, double gecenDakika)
         {
             try
             {
@@ -287,6 +286,16 @@ namespace Cihaz_Takip_Uygulaması
                 await Task.Run(() => DBHelper.GuncelleDurum(cihazRecNo, "Down durumda, mail gönderildi"));
 
                 UpdateStatusAfterMailSent(cihazRecNo, ip, konu, mailAdres);
+
+                // Durumu güncelle
+                foreach (DataRow row in _downCihazlarTable.Rows)
+                {
+                    if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
+                    {
+                        row["Durum"] = "Mail gönderildi";
+                        break;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -349,6 +358,19 @@ namespace Cihaz_Takip_Uygulaması
                     int dakika = kalanSaniye / 60;
                     int saniye = kalanSaniye % 60;
                     row["KalanSure"] = $"{dakika:D2}:{saniye:D2}";
+
+                    // Durumu kontrol et, eğer "Mail gönderildi" ise maili tekrar gönderme
+                    string durum = row["Durum"].ToString();
+                    if (kalanSaniye == 0 && durum != "Mail gönderildi")
+                    {
+                        int grupRecNo = Convert.ToInt32(row["GrupRecNo"]);
+                        string ip = row["IPNo"].ToString();
+                        string aciklama = row["Aciklama"].ToString();
+                        SendMailAndUpdateStatus(cihazRecNo, grupRecNo, ip, aciklama, downZamani, beklemeSuresi);
+
+                        // Mail gönderildikten sonra durumu güncelle
+                        row["Durum"] = "Mail gönderildi";
+                    }
                 }
             }
 
