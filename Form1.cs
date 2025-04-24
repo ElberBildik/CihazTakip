@@ -70,7 +70,6 @@ namespace Cihaz_Takip_Uygulaması
             {
                 MesajlarRchTxt.Clear();
 
-                // Her ping işlemi öncesinde güncel veritabanı listesini alıyoruz
                 await Task.Run(() =>
                 {
                     Invoke(new Action(() =>
@@ -152,7 +151,7 @@ namespace Cihaz_Takip_Uygulaması
         }
 
         private async Task UpdateDeviceStatusAsync(DataGridViewRow row, int cihazRecNo, int cihazGrupRecNo,
-            string ip, string aciklama, bool isOnline)
+           string ip, string aciklama, bool isOnline)
         {
             if (isOnline)
             {
@@ -189,7 +188,6 @@ namespace Cihaz_Takip_Uygulaması
                 {
                     try
                     {
-                        // Önce sütunun var olup olmadığını kontrol edelim
                         if (row.DataGridView != null && row.DataGridView.Columns.Contains("Durum"))
                         {
                             row.Cells["Durum"].Value = "Down oldu, mail atılacak";
@@ -567,7 +565,7 @@ namespace Cihaz_Takip_Uygulaması
         }
         private void button1_Click(object sender, EventArgs e)
         {
-            // Check if any form of type Harita is already open
+
             Form existingForm = Application.OpenForms.OfType<Harita>().FirstOrDefault();
 
             if (existingForm != null)
@@ -576,10 +574,10 @@ namespace Cihaz_Takip_Uygulaması
                 MessageBox.Show("Harita ekranı zaten açık.", "Bilgi", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 if (existingForm.WindowState == FormWindowState.Minimized)
                 {
-                    existingForm.WindowState = FormWindowState.Normal; // Restore if minimized
+                    existingForm.WindowState = FormWindowState.Normal; 
                 }
-                existingForm.BringToFront(); // Bring to front
-                existingForm.Focus(); // Set focus to the form
+                existingForm.BringToFront(); 
+                existingForm.Focus(); 
             }
             else
             {
