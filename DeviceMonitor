@@ -1,0 +1,130 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Drawing;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace Cihaz_Takip_Uygulaması
+{
+    // Cihazların periyodik olarak izlenmesini (ping atılmasını) sağlayan sınıf
+    public class DeviceMonitor
+    {
+        private readonly PingMonitor _pingMonitor; // Ping işlemini gerçekleştiren sınıf
+        private readonly DeviceStatusManager _statusManager; // Cihaz durumlarını yöneten sınıf
+        private readonly UIManager _uiManager; // Kullanıcı arayüzünü yöneten sınıf
+        private readonly DataGridView _deviceGridView; // Cihazların listelendiği DataGridView
+        private readonly Timer _pingTimer; // Belirli aralıklarla ping işlemini başlatan zamanlayıcı
+        private const int PING_INTERVAL = 1000; // Ping işlemi için aralık - 1 saniye
+
+        // Constructor - sınıf başlatılırken bağımlılıklar enjekte edilir
+        public DeviceMonitor(
+            PingMonitor pingMonitor,
+            DeviceStatusManager statusManager,
+            UIManager uiManager,
+            DataGridView deviceGridView)
+        {
+            _pingMonitor = pingMonitor;
+            _statusManager = statusManager;
+            _uiManager = uiManager;
+            _deviceGridView = deviceGridView;
+
+            // Timer tanımlanır ve Tick olayına bir async metod bağlanır
+            _pingTimer = new Timer { Interval = PING_INTERVAL };
+            _pingTimer.Tick += async (sender, e) => await PingTimer_Tick(sender, e);
+
+            // Ping işlemi tamamlandığında çağrılacak event'e metod bağlanır
+            _pingMonitor.PingCompleted += async (sender, e) =>
+                await OnPingCompleted(sender, e);
+        }
+
+        // Ping zamanlayıcısını başlatır
+        public void Start()
+        {
+            _pingTimer.Start();
+            _uiManager.LogMessage("Ping işlemi başlatılıyor...", Color.Blue);
+        }
+
+        // Ping zamanlayıcısını durdurur ve durum sayaçlarını sıfırlar
+        public void Stop()
+        {
+            if (_pingTimer.Enabled)
+            {
+                _pingTimer.Stop();
+                _uiManager.LogMessage("Ping işlemi durduruldu.", Color.Blue);
+                _statusManager.StopAllTimers(); // Geri sayım işlemlerini durdur
+                _uiManager.LogMessage("Tüm geri sayım işlemleri durduruldu.", Color.Blue);
+            }
+        }
+
+        // Zamanlayıcı her tetiklendiğinde çalışan metod
+        private async Task PingTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                _uiManager.ClearLogMessages(); // Önceki logları temizle
+                await ScanAllDevicesAsync(); // Tüm cihazlara ping at
+                await UpdateUIAsync(); // Arayüzü güncelle
+            }
+            catch (Exception ex)
+            {
+                _uiManager.LogMessage($"[{DateTime.Now:HH:mm:ss}] Hata: {ex.Message}", Color.Red);
+            }
+        }
+
+        // Tüm cihazlara async olarak ping atan metod
+        public async Task ScanAllDevicesAsync()
+        {
+            var tasks = new List<Task>();
+
+            foreach (DataGridViewRow row in _deviceGridView.Rows)
+            {
+                // IP bilgisi olmayan satırlar atlanır
+                if (row.Cells["IPNo"].Value == null) continue;
+
+                // Cihaz bilgileri alınır
+                int cihazRecNo = Convert.ToInt32(row.Cells["RecNo"].Value);
+                int cihazGrupRecNo = Convert.ToInt32(row.Cells["GrupRecNo"].Value);
+                string ip = row.Cells["IPNo"].Value.ToString();
+                string aciklama = row.Cells["Aciklama"].Value?.ToString() ?? "";
+
+                // Ping öncesi hücre sarıya boyanır
+                row.DefaultCellStyle.BackColor = Color.Yellow;
+
+                // Ping işlemi başlatılır
+                tasks.Add(_pingMonitor.PingAsync(ip, cihazRecNo, cihazGrupRecNo, aciklama));
+            }
+
+            await Task.WhenAll(tasks); // Tüm ping işlemleri tamamlanana kadar beklenir
+        }
+
+        // Ping işlemi tamamlandığında tetiklenen event handler
+        private async Task OnPingCompleted(object sender, PingEventArgs e)
+        {
+            foreach (DataGridViewRow row in _deviceGridView.Rows)
+            {
+                if (row.Cells["RecNo"].Value == null) continue;
+
+                int cihazRecNo = Convert.ToInt32(row.Cells["RecNo"].Value);
+
+                // Ping sonucu gelen cihaz eşleşirse durumu yönet
+                if (cihazRecNo == e.CihazRecNo)
+                {
+                    await _statusManager.HandleDeviceStatusAsync(
+                        row, e.CihazRecNo, e.GrupRecNo, e.IpAddress, e.Aciklama, e.IsOnline);
+                    break;
+                }
+            }
+        }
+
+        // UI üzerinde görsel güncellemeleri yapan metod
+        private async Task UpdateUIAsync()
+        {
+            _deviceGridView.Refresh(); // DataGridView'i yenile
+            HücreRenkleme.DurumRenklendir(_deviceGridView); // Hücreleri duruma göre renklendir
+            _statusManager.UpdateDownDevicesRemainingTime(); // Down cihazlar için kalan süreyi güncelle
+
+            await Task.CompletedTask;
+        }
+    }
+}
