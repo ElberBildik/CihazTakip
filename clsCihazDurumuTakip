@@ -4,6 +4,7 @@ using System.Data;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Data.SqlClient;
 
 namespace Cihaz_Takip_Uygulaması
 {
@@ -76,6 +77,9 @@ namespace Cihaz_Takip_Uygulaması
                 row.DefaultCellStyle.BackColor = Color.Red;
                 _logAction($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu.", Color.Red);
                 DownCihazlariGrideEkle(cihazRecNo, cihazGrupRecNo, ip, aciklama);
+
+                // Cihaz down olunca yeni bir log kaydı oluştur
+                clsVeritabaniIslemleri.LogYeniDownKaydiOlustur(cihazRecNo);
             }
             catch (Exception ex)
             {
@@ -85,6 +89,7 @@ namespace Cihaz_Takip_Uygulaması
             await Task.Run(() =>
             {
                 clsVeritabaniIslemleri.GuncelleDurum(cihazRecNo, "Down oldu, mail atılacak");
+                // Eğer bu metod içerisinde cihazın down kaydını getirip ilgili işlemleri yapıyorsan;
                 clsVeritabaniIslemleri.CihazinDownKaydiniGetir(cihazRecNo);
             });
         }
@@ -101,14 +106,12 @@ namespace Cihaz_Takip_Uygulaması
 
             int beklemeSuresi = clsVeritabaniIslemleri.MailBeklemeSüresiniGetir(grupRecNo);
             DateTime downZamani = DateTime.Now;
-
-            // Cihaz grubunun açıklamasını al
             string grupAciklama = clsVeritabaniIslemleri.GrupAciklamasiniGetir(grupRecNo);
 
             DataRow newRow = _downCihazlarTable.NewRow();
             newRow["RecNo"] = cihazRecNo;
-            newRow["GrupRecNo"] = grupRecNo;          // Arka planda kullanmak için sayısal değer
-            newRow["GrupTuru"] = grupAciklama;        // Kullanıcıya gösterilecek cihaz türü
+            newRow["GrupRecNo"] = grupRecNo;
+            newRow["GrupTuru"] = grupAciklama;
             newRow["IPNo"] = ip;
             newRow["Aciklama"] = aciklama;
             newRow["DownZamani"] = downZamani;
@@ -131,7 +134,7 @@ namespace Cihaz_Takip_Uygulaması
                 _downCihazTimers.Remove(cihazRecNo);
             }
 
-            Timer cihazTimer = new Timer { Interval = 1000 }; // 1 saniye aralıkla çalışır
+            Timer cihazTimer = new Timer { Interval = 1000 };
             int kalanSaniye = beklemeSuresi * 60;
 
             cihazTimer.Tick += (sender, e) =>
@@ -239,12 +242,10 @@ namespace Cihaz_Takip_Uygulaması
                         string ip = row["IPNo"].ToString();
                         string aciklama = row["Aciklama"].ToString();
                         MailGonder(cihazRecNo, grupRecNo, ip, aciklama, downZamani, beklemeSuresi);
-
                         row["Durum"] = "Mail gönderildi";
                     }
                 }
             }
-
             _downDevicesGridView.Refresh();
         }
 
@@ -263,7 +264,8 @@ namespace Cihaz_Takip_Uygulaması
 
             if (rowToDelete != null)
             {
-                string ip = rowToDelete["IPNo"].ToString();
+                _downCihazlarTable.Rows.Remove(rowToDelete);
+                _downDevicesGridView.Refresh();
 
                 if (_downCihazTimers.ContainsKey(cihazRecNo))
                 {
@@ -272,8 +274,44 @@ namespace Cihaz_Takip_Uygulaması
                     _downCihazTimers.Remove(cihazRecNo);
                 }
 
-                _downCihazlarTable.Rows.Remove(rowToDelete);
-                _logAction($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı aktif duruma geçti ve down listesinden çıkarıldı.", Color.Green);
+                // Log tablosunda UpTime alanını güncelle
+                UpTimeGuncelle(cihazRecNo);
+            }
+        }
+
+        // Log tablosunda ilgili cihaz için UpTime alanını günceller
+        private void UpTimeGuncelle(int cihazRecNo)
+        {
+            try
+            {
+                using (SqlConnection conn = new SqlConnection("Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True"))
+                {
+                    conn.Open();
+                    string query = @"
+                        UPDATE Log 
+                        SET UpTime = @UpTime
+                        WHERE CihazRecNo = @CihazRecNo 
+                          AND UpTime IS NULL
+                          AND DownTime IS NOT NULL";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@UpTime", DateTime.Now);
+                        cmd.Parameters.AddWithValue("@CihazRecNo", cihazRecNo);
+                        int affectedRows = cmd.ExecuteNonQuery();
+                        if (affectedRows > 0)
+                        {
+                            _logAction($"[{DateTime.Now:HH:mm:ss}] Cihaz RecNo: {cihazRecNo} için UpTime başarıyla güncellendi.", Color.Blue);
+                        }
+                        else
+                        {
+                            _logAction($"[{DateTime.Now:HH:mm:ss}] Cihaz RecNo: {cihazRecNo} için güncellenecek Log kaydı bulunamadı.", Color.Orange);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logAction($"[{DateTime.Now:HH:mm:ss}] UpTime güncellerken hata: {ex.Message}", Color.Red);
             }
         }
 
