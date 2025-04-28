@@ -1,0 +1,58 @@
+using System;
+using System.Net.NetworkInformation;
+using System.Threading.Tasks;
+
+namespace Cihaz_Takip_Uygulaması
+{
+    public class clsPingAt
+    {
+        private const int PING_TIMEOUT = 1000; // 1 saniye
+
+        public event EventHandler<PingEventArgs> PingCompleted;
+
+        public async Task PingGonderAsync(string ip, int cihazRecNo, int cihazGrupRecNo, string aciklama)
+        {
+            bool isOnline = false;
+
+            try
+            {
+                using (var ping = new Ping())
+                {
+                    var reply = await ping.SendPingAsync(ip, PING_TIMEOUT);
+                    isOnline = reply.Status == IPStatus.Success;
+                }
+            }
+            catch (Exception)
+            {
+                isOnline = false;
+            }
+            finally
+            {
+                OnPingCompleted(new PingEventArgs(cihazRecNo, cihazGrupRecNo, ip, aciklama, isOnline));
+            }
+        }
+
+        protected virtual void OnPingCompleted(PingEventArgs e)
+        {
+            PingCompleted?.Invoke(this, e);
+        }
+    }
+
+    public class PingEventArgs : EventArgs
+    {
+        public int CihazRecNo { get; }
+        public int GrupRecNo { get; }
+        public string IpAddress { get; }
+        public string Aciklama { get; }
+        public bool IsOnline { get; }
+
+        public PingEventArgs(int cihazRecNo, int grupRecNo, string ipAddress, string aciklama, bool isOnline)
+        {
+            CihazRecNo = cihazRecNo;
+            GrupRecNo = grupRecNo;
+            IpAddress = ipAddress;
+            Aciklama = aciklama;
+            IsOnline = isOnline;
+        }
+    }
+}
