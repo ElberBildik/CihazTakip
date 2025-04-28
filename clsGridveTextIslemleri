@@ -1,0 +1,176 @@
+using System;
+using System.Data;
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace Cihaz_Takip_Uygulaması
+{
+    // UI işlemlerini yöneten sınıf
+    public class clsGridveTextIslemleri
+    {
+        private readonly DataGridView CihazlarGrid;          // Ana cihaz listesini gösteren grid
+        private readonly DataGridView DownCihazlarGrid;     // Down cihaz listesini gösteren grid
+        private readonly RichTextBox txtBoxLog;               // Log mesajlarının gösterildiği kutu
+        private readonly RichTextBox txtBoxBildirimler;      // Bildirimlerin gösterildiği kutu
+
+        // Yapıcı metot, gerekli UI bileşenlerini alır
+        public clsGridveTextIslemleri(
+            DataGridView deviceGridView,
+            DataGridView downDevicesGridView,
+            RichTextBox logTextBox,
+            RichTextBox notificationTextBox)
+        {
+            CihazlarGrid = deviceGridView;
+            DownCihazlarGrid = downDevicesGridView;
+            txtBoxLog = logTextBox;
+            txtBoxBildirimler = notificationTextBox;
+        }
+
+        // Down cihazlar için tabloyu başlatır ve grid'e bağlar
+        public void CihazlariGrideEkle(DataTable downCihazlarTable)
+        {
+            // Gerekli kolonlar tabloya ekleniyor
+            downCihazlarTable.Columns.AddRange(new[]
+            {
+                new DataColumn("RecNo", typeof(int)),               // Cihaz No
+                new DataColumn("GrupRecNo", typeof(int)),           // Grup No
+                new DataColumn("IPNo", typeof(string)),             // IP Adresi
+                new DataColumn("Aciklama", typeof(string)),         // Açıklama
+                new DataColumn("DownZamani", typeof(DateTime)),     // Down zamanı
+                new DataColumn("BeklemeSuresi", typeof(int)),       // Bekleme süresi (dk)
+                new DataColumn("KalanSure", typeof(string)),        // Kalan süre
+                new DataColumn("Durum", typeof(string))             // Durum bilgisi
+            });
+
+            DownCihazlarGrid.DataSource = downCihazlarTable;
+            DownOlanCihazlarıGrideEkle();
+        }
+
+        // Down cihazlar grid'ini konfigüre eder (görsel ayarlamalar)
+        private void DownOlanCihazlarıGrideEkle()
+        {
+            DownCihazlarGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            DownCihazlarGrid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+
+            // Tarih formatı ve başlık ayarları
+            DownCihazlarGrid.Columns["DownZamani"].DefaultCellStyle.Format = "dd.MM.yyyy HH:mm:ss";
+            DownCihazlarGrid.Columns["RecNo"].HeaderText = "Cihaz No";
+            DownCihazlarGrid.Columns["IPNo"].HeaderText = "IP Adresi";
+            DownCihazlarGrid.Columns["DownZamani"].HeaderText = "Down Zamanı";
+            DownCihazlarGrid.Columns["KalanSure"].HeaderText = "Kalan Süre";
+        }
+
+        // Verileri yükler ve grid'e yansıtır
+        public void VerileriGrideYükle()
+        {
+            try
+            {
+                DataTable dt = clsVeriErisim.VerileriGetir(); // Veritabanından veriler çekiliyor
+                CihazlarGrid.DataSource = dt;
+
+                HücreninDurumunaGöreRenklendir(); // Grid ayarları uygulanıyor
+                LogEkle("Cihaz verileri başarıyla yüklendi.", Color.Green);
+            }
+            catch (Exception ex)
+            {
+                LogEkle($"Veriler yüklenirken hata oluştu: {ex.Message}", Color.Red);
+                MessageBox.Show("Veriler yüklenirken hata oluştu: " + ex.Message);
+            }
+        }
+
+        // Ana cihaz grid'ini görsel olarak konfigüre eder
+        public void HücreninDurumunaGöreRenklendir()
+        {
+            CihazlarGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            CihazlarGrid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+            CihazlarGrid.Refresh();
+            clsHücreRenklendirme.DurumRenklendir(CihazlarGrid); // Duruma göre hücreler renklendiriliyor
+        }
+
+        // IP adresine göre cihazları arar ve grid'e filtrelenmiş sonucu yükler
+        public void IpyeGöreCihazAra(string ipNo)
+        {
+            if (string.IsNullOrWhiteSpace(ipNo))
+            {
+                LogEkle("Lütfen bir IP numarası girin.", Color.Red);
+                MessageBox.Show("Lütfen bir IP numarası girin.");
+                return;
+            }
+
+            LogEkle($"'{ipNo}' IP numarası aranıyor...", Color.Blue);
+
+            try
+            {
+                DataTable dt = clsVeriErisim.VerileriGetir();
+                string filterExpression = $"IPNo LIKE '%{ipNo}%'";
+                DataRow[] filteredRows = dt.Select(filterExpression);
+
+                // Filtrelenen satırlar yeni tabloya aktarılıyor
+                DataTable filteredDataTable = dt.Clone();
+                foreach (DataRow row in filteredRows)
+                {
+                    filteredDataTable.ImportRow(row);
+                }
+
+                CihazlarGrid.DataSource = filteredDataTable;
+                CihazlarGrid.Refresh();
+                clsHücreRenklendirme.DurumRenklendir(CihazlarGrid); // Yeniden renklendirme
+
+                LogEkle($"Arama tamamlandı. {filteredDataTable.Rows.Count} sonuç bulundu.", Color.Green);
+            }
+            catch (Exception ex)
+            {
+                LogEkle($"Filtreleme işlemi sırasında hata oluştu: {ex.Message}", Color.Red);
+                MessageBox.Show("Filtreleme işlemi sırasında hata oluştu: " + ex.Message);
+            }
+        }
+
+        // Cihaz listesini yeniler
+        public void CihazlarGridiniYenile()
+        {
+            DataTable dt = clsVeriErisim.VerileriGetir();
+            CihazlarGrid.DataSource = dt;
+            HücreninDurumunaGöreRenklendir();
+        }
+
+        // Log kutusuna renkli mesaj ekler
+        public void LogEkle(string text, Color color)
+        {
+            if (txtBoxLog.InvokeRequired)
+            {
+                txtBoxLog.Invoke(new Action(() => LogEkle(text, color)));
+                return;
+            }
+
+            txtBoxLog.SelectionStart = txtBoxLog.TextLength;
+            txtBoxLog.SelectionLength = 0;
+            txtBoxLog.SelectionColor = color;
+            txtBoxLog.AppendText(text + Environment.NewLine);
+            txtBoxLog.SelectionColor = txtBoxLog.ForeColor;
+            txtBoxLog.ScrollToCaret(); // Otomatik scroll
+        }
+
+        // Bildirim kutusuna mesaj ekler
+        public void BildirimEkle(string text)
+        {
+            if (txtBoxBildirimler.InvokeRequired)
+            {
+                txtBoxBildirimler.Invoke(new Action(() => BildirimEkle(text)));
+                return;
+            }
+
+            txtBoxBildirimler.SelectionStart = txtBoxBildirimler.TextLength;
+            txtBoxBildirimler.SelectionLength = 0;
+            txtBoxBildirimler.SelectionColor = Color.Orange;
+            txtBoxBildirimler.AppendText(text + Environment.NewLine);
+            txtBoxBildirimler.SelectionColor = txtBoxBildirimler.ForeColor;
+            txtBoxBildirimler.ScrollToCaret();
+        }
+
+        // Log kutusunu temizler
+        public void LogMesajlariTemizle()
+        {
+            txtBoxLog.Clear();
+        }
+    }
+}
