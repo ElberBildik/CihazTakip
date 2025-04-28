@@ -102,9 +102,13 @@ namespace Cihaz_Takip_Uygulaması
             int beklemeSuresi = clsVeritabaniIslemleri.MailBeklemeSüresiniGetir(grupRecNo);
             DateTime downZamani = DateTime.Now;
 
+            // Cihaz grubunun açıklamasını al
+            string grupAciklama = clsVeritabaniIslemleri.GrupAciklamasiniGetir(grupRecNo);
+
             DataRow newRow = _downCihazlarTable.NewRow();
             newRow["RecNo"] = cihazRecNo;
-            newRow["GrupRecNo"] = grupRecNo;
+            newRow["GrupRecNo"] = grupRecNo;          // Arka planda kullanmak için sayısal değer
+            newRow["GrupTuru"] = grupAciklama;        // Kullanıcıya gösterilecek cihaz türü
             newRow["IPNo"] = ip;
             newRow["Aciklama"] = aciklama;
             newRow["DownZamani"] = downZamani;
@@ -112,7 +116,6 @@ namespace Cihaz_Takip_Uygulaması
             newRow["KalanSure"] = beklemeSuresi.ToString() + " dk";
             newRow["Durum"] = "Mail bekleniyor";
             _downCihazlarTable.Rows.Add(newRow);
-
             DownCihazTimerBaslat(cihazRecNo, grupRecNo, beklemeSuresi, downZamani, ip, aciklama);
             _logAction($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down listesine eklendi. Bekleme süresi: {beklemeSuresi} dk", Color.Orange);
         }
