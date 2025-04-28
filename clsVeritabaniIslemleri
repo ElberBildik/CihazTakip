@@ -135,5 +135,36 @@ namespace Cihaz_Takip_Uygulaması
                 throw new Exception("Cihazın down kaydı eklenirken hata oluştu: " + ex.Message);
             }
         }
+        public static string GrupAciklamasiniGetir(int grupRecNo)
+        {
+            string grupAciklama = "Bilinmiyor";
+
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(clsBaglantiSinifi.Get))
+                {
+                    conn.Open();
+                    string query = "SELECT Aciklama FROM CihazGrup WHERE RecNo = @GrupRecNo";
+
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@GrupRecNo", grupRecNo);
+                        object result = cmd.ExecuteScalar();
+
+                        if (result != null && result != DBNull.Value)
+                        {
+                            grupAciklama = result.ToString();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Hata loglaması burada yapılabilir
+                Console.WriteLine($"Grup açıklaması alınırken hata: {ex.Message}");
+            }
+
+            return grupAciklama;
+        }
     }
 }
