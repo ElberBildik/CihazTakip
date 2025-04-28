@@ -166,5 +166,50 @@ namespace Cihaz_Takip_Uygulaması
 
             return grupAciklama;
         }
+        public static void LogYeniDownKaydiOlustur(int cihazRecNo)
+        {
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(clsBaglantiSinifi.Get))
+                {
+                    conn.Open();
+
+                    // Önce açık (UpTime değeri null olan) bir log kaydı var mı kontrol et
+                    string checkQuery = @"
+                SELECT COUNT(*)
+                FROM Log
+                WHERE CihazRecNo = @CihazRecNo
+                AND DownTime IS NOT NULL
+                AND UpTime IS NULL";
+
+                    using (SqlCommand checkCmd = new SqlCommand(checkQuery, conn))
+                    {
+                        checkCmd.Parameters.AddWithValue("@CihazRecNo", cihazRecNo);
+                        int existingOpenLogCount = (int)checkCmd.ExecuteScalar();
+
+                        // Eğer açık bir log kaydı yoksa yeni bir log kaydı oluştur
+                        if (existingOpenLogCount == 0)
+                        {
+                            string insertQuery = @"
+                        INSERT INTO Log (CihazRecNo, DownTime)
+                        VALUES (@CihazRecNo, @DownTime)";
+
+                            using (SqlCommand insertCmd = new SqlCommand(insertQuery, conn))
+                            {
+                                insertCmd.Parameters.AddWithValue("@CihazRecNo", cihazRecNo);
+                                insertCmd.Parameters.AddWithValue("@DownTime", DateTime.Now);
+                                insertCmd.ExecuteNonQuery();
+                            }
+                        }
+                        // Açık bir log kaydı zaten var, yeni kayıt oluşturmaya gerek yok
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Loglama veya hata yönetimi
+                Console.WriteLine($"Log kaydı oluşturulurken hata: {ex.Message}");
+            }
+        }
     }
 }
