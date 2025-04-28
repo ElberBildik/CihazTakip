@@ -1,0 +1,288 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Drawing;
+
+namespace Cihaz_Takip_Uygulaması
+{
+    // Cihazların durumlarını takip eden ve down olan cihazlar için mail gönderen yönetici sınıf
+    public class clsCihazDurumuTakip
+    {
+        private readonly DataTable _downCihazlarTable;
+        private readonly Dictionary<int, Timer> _downCihazTimers;
+        private readonly Action<string, Color> _logAction;
+        private readonly Action<string> _notificationAction;
+        private readonly DataGridView _deviceGridView;
+        private readonly DataGridView _downDevicesGridView;
+
+        // Kurucu metod: gerekli veri yapıları ve işlemler için bağımlılıklar alınır
+        public clsCihazDurumuTakip(
+            DataTable downCihazlarTable,
+            DataGridView deviceGridView,
+            DataGridView downDevicesGridView,
+            Action<string, Color> logAction,
+            Action<string> notificationAction)
+        {
+            _downCihazlarTable = downCihazlarTable;
+            _downCihazTimers = new Dictionary<int, Timer>();
+            _deviceGridView = deviceGridView;
+            _downDevicesGridView = downDevicesGridView;
+            _logAction = logAction;
+            _notificationAction = notificationAction;
+        }
+
+        // Cihazın durumuna göre online veya offline işlemlerini başlatır
+        public async Task HandleDeviceStatusAsync(
+            DataGridViewRow row, int cihazRecNo, int cihazGrupRecNo,
+            string ip, string aciklama, bool isOnline)
+        {
+            if (isOnline)
+            {
+                await CihazUpiseLogla(row, cihazRecNo, ip);
+            }
+            else
+            {
+                await CihazDownIseLogla(row, cihazRecNo, cihazGrupRecNo, ip, aciklama);
+            }
+        }
+
+        // Cihaz online ise durumu günceller ve varsa down listesinden çıkarır
+        private async Task CihazUpiseLogla(DataGridViewRow row, int cihazRecNo, string ip)
+        {
+            row.Cells["Durum"].Value = "UP";
+            row.DefaultCellStyle.BackColor = Color.Green;
+            _logAction($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Up durumunda.", Color.Green);
+            DowndanUpOlursaListedenCikar(cihazRecNo);
+            await Task.Run(() => clsVeritabaniIslemleri.GuncelleDurum(cihazRecNo, "UP"));
+        }
+
+        // Cihaz offline ise durumu ve logları günceller, down listesine ekler
+        private async Task CihazDownIseLogla(DataGridViewRow row, int cihazRecNo,
+            int cihazGrupRecNo, string ip, string aciklama)
+        {
+            try
+            {
+                if (row.DataGridView != null && row.DataGridView.Columns.Contains("Durum"))
+                {
+                    row.Cells["Durum"].Value = "Down oldu, mail atılacak";
+                }
+                else
+                {
+                    _logAction($"[{DateTime.Now:HH:mm:ss}] 'Durum' sütunu bulunamadı!", Color.Red);
+                }
+
+                row.DefaultCellStyle.BackColor = Color.Red;
+                _logAction($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down oldu.", Color.Red);
+                DownCihazlariGrideEkle(cihazRecNo, cihazGrupRecNo, ip, aciklama);
+            }
+            catch (Exception ex)
+            {
+                _logAction($"[{DateTime.Now:HH:mm:ss}] Hata: {ex.Message}", Color.Red);
+            }
+
+            await Task.Run(() =>
+            {
+                clsVeritabaniIslemleri.GuncelleDurum(cihazRecNo, "Down oldu, mail atılacak");
+                clsVeritabaniIslemleri.CihazinDownKaydiniGetir(cihazRecNo);
+            });
+        }
+
+        // Down olan cihazları tabloya ekler ve zamanlayıcı başlatır
+        public void DownCihazlariGrideEkle(int cihazRecNo, int grupRecNo, string ip, string aciklama)
+        {
+            // Aynı cihaz tekrar eklenmesin
+            foreach (DataRow row in _downCihazlarTable.Rows)
+            {
+                if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
+                    return;
+            }
+
+            int beklemeSuresi = clsVeritabaniIslemleri.MailBeklemeSüresiniGetir(grupRecNo);
+            DateTime downZamani = DateTime.Now;
+
+            DataRow newRow = _downCihazlarTable.NewRow();
+            newRow["RecNo"] = cihazRecNo;
+            newRow["GrupRecNo"] = grupRecNo;
+            newRow["IPNo"] = ip;
+            newRow["Aciklama"] = aciklama;
+            newRow["DownZamani"] = downZamani;
+            newRow["BeklemeSuresi"] = beklemeSuresi;
+            newRow["KalanSure"] = beklemeSuresi.ToString() + " dk";
+            newRow["Durum"] = "Mail bekleniyor";
+            _downCihazlarTable.Rows.Add(newRow);
+
+            DownCihazTimerBaslat(cihazRecNo, grupRecNo, beklemeSuresi, downZamani, ip, aciklama);
+            _logAction($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı Down listesine eklendi. Bekleme süresi: {beklemeSuresi} dk", Color.Orange);
+        }
+
+        // Zamanlayıcı başlatılır, süre dolduğunda mail gönderilir
+        private void DownCihazTimerBaslat(int cihazRecNo, int grupRecNo, int beklemeSuresi,
+            DateTime downZamani, string ip, string aciklama)
+        {
+            if (_downCihazTimers.ContainsKey(cihazRecNo))
+            {
+                _downCihazTimers[cihazRecNo].Stop();
+                _downCihazTimers[cihazRecNo].Dispose();
+                _downCihazTimers.Remove(cihazRecNo);
+            }
+
+            Timer cihazTimer = new Timer { Interval = 1000 }; // 1 saniye aralıkla çalışır
+            int kalanSaniye = beklemeSuresi * 60;
+
+            cihazTimer.Tick += (sender, e) =>
+            {
+                kalanSaniye--;
+                KalanSure(cihazRecNo, kalanSaniye);
+                KalanSüreHesaplaveMailGonder();
+
+                if (kalanSaniye <= 0)
+                {
+                    cihazTimer.Stop();
+                    cihazTimer.Dispose();
+                    _downCihazTimers.Remove(cihazRecNo);
+                }
+            };
+
+            cihazTimer.Start();
+            _downCihazTimers.Add(cihazRecNo, cihazTimer);
+        }
+
+        // Mail gönderimi ve veritabanı güncellemesi yapılır
+        public async void MailGonder(int cihazRecNo, int grupRecNo, string ip, string aciklama, DateTime downZamani, double gecenDakika)
+        {
+            try
+            {
+                string mailAdres = clsVeritabaniIslemleri.MailAdresiniGetir(grupRecNo);
+                string konu = $"[CIHAZA ERISILEMIYOR] {aciklama}";
+                string icerik = $"{aciklama} cihazı {downZamani} tarihinde erişilemez oldu.\n" +
+                                $"{gecenDakika:F1} dakikadır bağlantı sağlanamıyor.\nIP Adresi: {ip}";
+
+                await clsMailHelper.PingGonderAsync(mailAdres, konu, icerik, cihazRecNo);
+                await Task.Run(() => clsVeritabaniIslemleri.GuncelleDurum(cihazRecNo, "Down durumda, mail gönderildi"));
+
+                MailGonderildiktenSonraDurumuGüncelle(cihazRecNo, ip, konu, mailAdres);
+            }
+            catch (Exception ex)
+            {
+                _logAction($"[{DateTime.Now:HH:mm:ss}] Mail gönderirken hata: {ex.Message}. IP Adresi: {ip}", Color.Red);
+            }
+        }
+
+        // Mail gönderildikten sonra UI ve tablo güncellenir
+        private void MailGonderildiktenSonraDurumuGüncelle(int cihazRecNo, string ip, string konu, string mailAdres)
+        {
+            foreach (DataRow row in _downCihazlarTable.Rows)
+            {
+                if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
+                {
+                    row["Durum"] = "Mail gönderildi";
+                    break;
+                }
+            }
+
+            foreach (DataGridViewRow row in _deviceGridView.Rows)
+            {
+                if (Convert.ToInt32(row.Cells["RecNo"].Value) == cihazRecNo)
+                {
+                    row.Cells["Durum"].Value = "Down mail atıldı";
+                    break;
+                }
+            }
+
+            _notificationAction($"[{DateTime.Now:HH:mm:ss}] {ip} için mail gönderildi. Konu: {konu}, Adres: {mailAdres}");
+            _logAction($"[{DateTime.Now:HH:mm:ss}] {ip} için bekleme süresi aşıldı. Mail gönderildi ve durum güncellendi. IP Adresi: {ip}", Color.Orange);
+        }
+
+        // Kalan süre hesaplanır ve tabloya yansıtılır
+        private void KalanSure(int cihazRecNo, int kalanSaniye)
+        {
+            foreach (DataRow row in _downCihazlarTable.Rows)
+            {
+                if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
+                {
+                    int dakika = kalanSaniye / 60;
+                    int saniye = kalanSaniye % 60;
+                    row["KalanSure"] = $"{dakika:D2}:{saniye:D2}";
+                    break;
+                }
+            }
+        }
+
+        // Tüm down cihazların kalan süreleri güncellenir, süre bitmişse mail gönderilir
+        public void KalanSüreHesaplaveMailGonder()
+        {
+            foreach (DataRow row in _downCihazlarTable.Rows)
+            {
+                int cihazRecNo = Convert.ToInt32(row["RecNo"]);
+                if (_downCihazTimers.ContainsKey(cihazRecNo))
+                {
+                    DateTime downZamani = (DateTime)row["DownZamani"];
+                    int beklemeSuresi = Convert.ToInt32(row["BeklemeSuresi"]);
+
+                    TimeSpan gecenSure = DateTime.Now - downZamani;
+                    int kalanSaniye = (beklemeSuresi * 60) - (int)gecenSure.TotalSeconds;
+                    if (kalanSaniye < 0) kalanSaniye = 0;
+
+                    int dakika = kalanSaniye / 60;
+                    int saniye = kalanSaniye % 60;
+                    row["KalanSure"] = $"{dakika:D2}:{saniye:D2}";
+
+                    string durum = row["Durum"].ToString();
+                    if (kalanSaniye == 0 && durum != "Mail gönderildi")
+                    {
+                        int grupRecNo = Convert.ToInt32(row["GrupRecNo"]);
+                        string ip = row["IPNo"].ToString();
+                        string aciklama = row["Aciklama"].ToString();
+                        MailGonder(cihazRecNo, grupRecNo, ip, aciklama, downZamani, beklemeSuresi);
+
+                        row["Durum"] = "Mail gönderildi";
+                    }
+                }
+            }
+
+            _downDevicesGridView.Refresh();
+        }
+
+        // Cihaz tekrar online olursa down listesinden çıkarılır
+        public void DowndanUpOlursaListedenCikar(int cihazRecNo)
+        {
+            DataRow rowToDelete = null;
+            foreach (DataRow row in _downCihazlarTable.Rows)
+            {
+                if (Convert.ToInt32(row["RecNo"]) == cihazRecNo)
+                {
+                    rowToDelete = row;
+                    break;
+                }
+            }
+
+            if (rowToDelete != null)
+            {
+                string ip = rowToDelete["IPNo"].ToString();
+
+                if (_downCihazTimers.ContainsKey(cihazRecNo))
+                {
+                    _downCihazTimers[cihazRecNo].Stop();
+                    _downCihazTimers[cihazRecNo].Dispose();
+                    _downCihazTimers.Remove(cihazRecNo);
+                }
+
+                _downCihazlarTable.Rows.Remove(rowToDelete);
+                _logAction($"[{DateTime.Now:HH:mm:ss}] [{ip}] cihazı aktif duruma geçti ve down listesinden çıkarıldı.", Color.Green);
+            }
+        }
+
+        // Tüm zamanlayıcılar durdurulur
+        public void İslemleriDurdur()
+        {
+            foreach (var timer in _downCihazTimers.Values)
+            {
+                timer.Stop();
+                timer.Dispose();
+            }
+            _downCihazTimers.Clear();
+        }
+    }
+}
