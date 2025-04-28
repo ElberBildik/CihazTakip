@@ -32,15 +32,16 @@ namespace Cihaz_Takip_Uygulaması
             // Gerekli kolonlar tabloya ekleniyor
             downCihazlarTable.Columns.AddRange(new[]
             {
-                new DataColumn("RecNo", typeof(int)),               // Cihaz No
-                new DataColumn("GrupRecNo", typeof(int)),           // Grup No
-                new DataColumn("IPNo", typeof(string)),             // IP Adresi
-                new DataColumn("Aciklama", typeof(string)),         // Açıklama
-                new DataColumn("DownZamani", typeof(DateTime)),     // Down zamanı
-                new DataColumn("BeklemeSuresi", typeof(int)),       // Bekleme süresi (dk)
-                new DataColumn("KalanSure", typeof(string)),        // Kalan süre
-                new DataColumn("Durum", typeof(string))             // Durum bilgisi
-            });
+        new DataColumn("RecNo", typeof(int)),               // Cihaz No
+        new DataColumn("GrupRecNo", typeof(int)),           // Grup No (arka planda kullanmak için)
+        new DataColumn("GrupTuru", typeof(string)),         // Cihaz Türü (görüntüleme için)
+        new DataColumn("IPNo", typeof(string)),             // IP Adresi
+        new DataColumn("Aciklama", typeof(string)),         // Açıklama
+        new DataColumn("DownZamani", typeof(DateTime)),     // Down zamanı
+        new DataColumn("BeklemeSuresi", typeof(int)),       // Bekleme süresi (dk)
+        new DataColumn("KalanSure", typeof(string)),        // Kalan süre
+        new DataColumn("Durum", typeof(string))             // Durum bilgisi
+    });
 
             DownCihazlarGrid.DataSource = downCihazlarTable;
             DownOlanCihazlarıGrideEkle();
@@ -52,13 +53,22 @@ namespace Cihaz_Takip_Uygulaması
             DownCihazlarGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             DownCihazlarGrid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
 
+            // Grup RecNo'yu gizle (arka planda kullanılacak)
+            if (DownCihazlarGrid.Columns.Contains("GrupRecNo"))
+            {
+                DownCihazlarGrid.Columns["GrupRecNo"].Visible = false;
+            }
+
             // Tarih formatı ve başlık ayarları
             DownCihazlarGrid.Columns["DownZamani"].DefaultCellStyle.Format = "dd.MM.yyyy HH:mm:ss";
             DownCihazlarGrid.Columns["RecNo"].HeaderText = "Cihaz No";
+            DownCihazlarGrid.Columns["GrupTuru"].HeaderText = "Cihaz Türü";
             DownCihazlarGrid.Columns["IPNo"].HeaderText = "IP Adresi";
             DownCihazlarGrid.Columns["DownZamani"].HeaderText = "Down Zamanı";
             DownCihazlarGrid.Columns["KalanSure"].HeaderText = "Kalan Süre";
         }
+
+      
 
         // Verileri yükler ve grid'e yansıtır
         public void VerileriGrideYükle()
