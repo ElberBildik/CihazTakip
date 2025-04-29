@@ -2,6 +2,8 @@ using System;
 using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Linq;
+
 
 namespace Cihaz_Takip_Uygulaması
 {
@@ -152,6 +154,14 @@ namespace Cihaz_Takip_Uygulaması
                 return;
             }
 
+            // Log eklemeden önce satır sayısını kontrol et
+            if (txtBoxLog.Lines.Length >= 1000)
+            {
+                // 1000 satıra ulaşmışsa, tüm logu temizle
+                txtBoxLog.Clear();
+            }
+
+            // Yeni logu ekle
             txtBoxLog.SelectionStart = txtBoxLog.TextLength;
             txtBoxLog.SelectionLength = 0;
             txtBoxLog.SelectionColor = color;
@@ -159,7 +169,6 @@ namespace Cihaz_Takip_Uygulaması
             txtBoxLog.SelectionColor = txtBoxLog.ForeColor;
             txtBoxLog.ScrollToCaret(); // Otomatik scroll
         }
-
         // Bildirim kutusuna mesaj ekler
         public void BildirimEkle(string text)
         {
