@@ -1,0 +1,228 @@
+using System;
+using System.Data.SqlClient;
+using System.Drawing;
+using System.Windows.Forms;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+
+namespace Cihaz_Takip_Uygulaması
+{
+    public partial class frmSagUstEkran : Form
+    {
+        private PictureBox yanipSonenResim;
+        private Timer animasyonTimer;
+        private Timer durumGuncellemeTimer;
+        private Image orjinalResim;
+        private bool azaliyorMu = true; // Yanıp sönme için
+        private int opaklikDegeri = 255; // Tam görünürlük
+        private double sinüsDalgasiZamani = 0; // Sinüs fonksiyonu için zaman
+        private int orjinalWidth;
+        private int orjinalHeight;
+        private Label lblUpCount;
+        private Label lblDownCount;
+        private string connectionString = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
+
+        public frmSagUstEkran()
+        {
+            InitializeComponent();
+            this.Size = new Size(400, 500);
+            this.Text = "Cihaz Takip Uygulaması";
+        }
+
+        private void frmSagUstEkran_Load(object sender, EventArgs e)
+        {
+            // Alt alta düzen oluştur
+            AltAltaYerlesimiOlustur();
+
+            // Timer oluştur
+            animasyonTimer = new Timer
+            {
+                Interval = 50 // Her 50 ms'de bir çalışsın
+            };
+            animasyonTimer.Tick += AnimasyonTimer_Tick;
+            animasyonTimer.Start();
+
+            // Durum güncelleme timer'ı oluştur
+            durumGuncellemeTimer = new Timer
+            {
+                Interval = 1000 // Her 1 saniyede bir çalışsın
+            };
+            durumGuncellemeTimer.Tick += DurumGuncellemeTimer_Tick;
+            durumGuncellemeTimer.Start();
+
+            // İlk durum güncellemesini yap
+            DurumlariBilgileriniGuncelle();
+
+            // Form Paint olayını ekle
+            this.Paint += FrmSagUstEkran_Paint;
+        }
+
+        private void AltAltaYerlesimiOlustur()
+        {
+            int yOffset = 20;
+            int xOffset = 20;
+
+            // 1. Durum Bilgileri (UP/DOWN Sayaçları)
+            // UP sayacı
+            lblUpCount = new Label
+            {
+                Location = new Point(xOffset, yOffset),
+                Size = new Size(150, 20),
+                Text = "UP: 0",
+                Font = new Font("Arial", 10, FontStyle.Bold),
+                ForeColor = Color.Green
+            };
+            this.Controls.Add(lblUpCount);
+
+            // DOWN sayacı
+            lblDownCount = new Label
+            {
+                Location = new Point(xOffset, yOffset + 25),
+                Size = new Size(150, 20),
+                Text = "DOWN: 0",
+                Font = new Font("Arial", 10, FontStyle.Bold),
+                ForeColor = Color.Red
+            };
+            this.Controls.Add(lblDownCount);
+
+            // 2. Animasyonlu Logo
+            yOffset += 70; // Bir sonraki öğeye geçiş için boşluk bırak
+
+            // Logo yükle ve boyutlandır
+            orjinalResim = Image.FromFile(@"C:\Users\ebildik\Desktop\PNG\egelogo.png");
+            yanipSonenResim = new PictureBox
+            {
+                Image = orjinalResim,
+                SizeMode = PictureBoxSizeMode.StretchImage,
+                Width = (int)(orjinalResim.Width * 0.4),
+                Height = (int)(orjinalResim.Height * 0.4),
+                BackColor = Color.Transparent,
+                Location = new Point(xOffset, yOffset)
+            };
+            this.Controls.Add(yanipSonenResim);
+
+            // Orijinal boyutları kaydet
+            orjinalWidth = yanipSonenResim.Width;
+            orjinalHeight = yanipSonenResim.Height;
+
+            // Bir sonraki öğe için konum güncelle (logo altı)
+            yOffset += yanipSonenResim.Height + 30;
+        }
+
+        private void AnimasyonTimer_Tick(object sender, EventArgs e)
+        {
+            // Dalgalanma (sinüs dalgası)
+            double sinüsDeğeri = Math.Sin(sinüsDalgasiZamani); // Sinüs dalgası
+
+            // Sinüs dalgasına göre resmi büyütüp küçült
+            int yeniWidth = (int)(orjinalWidth + 5 * sinüsDeğeri); // 5: dalganın büyüklüğü
+            int yeniHeight = (int)(orjinalHeight + 5 * sinüsDeğeri);
+
+            // Yumuşak büyüyüp küçülme efekti
+            yanipSonenResim.Width = yeniWidth;
+            yanipSonenResim.Height = yeniHeight;
+
+            // Yanıp sönme efekti
+            if (azaliyorMu)
+            {
+                opaklikDegeri -= 5;
+                if (opaklikDegeri <= 100)
+                    azaliyorMu = false;
+            }
+            else
+            {
+                opaklikDegeri += 5;
+                if (opaklikDegeri >= 255)
+                    azaliyorMu = true;
+            }
+
+            // Görüntünün opaklık değerini ayarla
+            yanipSonenResim.Image = SetImageOpacity(orjinalResim, (float)opaklikDegeri / 255f);
+
+            // Sinüs dalgasının zamanını artır
+            sinüsDalgasiZamani += 0.1; // Hızını ayarlamak için değeri değiştirebilirsin
+        }
+
+        private Image SetImageOpacity(Image image, float opacity)
+        {
+            Bitmap bmp = new Bitmap(image.Width, image.Height);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                ColorMatrix matrix = new ColorMatrix();
+                matrix.Matrix33 = opacity; // Alpha kanalı
+
+                ImageAttributes attributes = new ImageAttributes();
+                attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+
+                g.DrawImage(image, new Rectangle(0, 0, bmp.Width, bmp.Height), 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, attributes);
+            }
+            return bmp;
+        }
+
+        private void DurumGuncellemeTimer_Tick(object sender, EventArgs e)
+        {
+            DurumlariBilgileriniGuncelle();
+        }
+
+        private void DurumlariBilgileriniGuncelle()
+{
+    try
+    {
+        using (SqlConnection connection = new SqlConnection(connectionString))
+        {
+            connection.Open();
+
+            // UP ve içinde DOWN geçen kayıtların sayısını al
+            string countQuery = @"
+                SELECT 
+                    (SELECT COUNT(*) FROM Cihaz WHERE Durum = 'UP') AS UP_Count,
+                    (SELECT COUNT(*) FROM Cihaz WHERE Durum LIKE '%DOWN%') AS DOWN_Count";
+
+            SqlCommand countCommand = new SqlCommand(countQuery, connection);
+            SqlDataReader countReader = countCommand.ExecuteReader();
+
+            if (countReader.Read())
+            {
+                int upCount = countReader.GetInt32(0);
+                int downCount = countReader.GetInt32(1);
+
+                lblUpCount.Text = $"UP: {upCount}";
+                lblDownCount.Text = $"DOWN: {downCount}";
+            }
+            countReader.Close();
+        }
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show("Veritabanı bağlantı hatası: " + ex.Message, "Hata",
+            MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+}
+
+
+        private void FrmSagUstEkran_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            Font font = new Font("Arial", 10);
+            int startY = yanipSonenResim.Bottom + 50; // Logo altında bir boşluk bırakarak başla
+            int startX = 50;
+            int lineLength = 150;
+            int aralik = 35; // Çizgiler arası mesafe
+
+            // Çizgileri ve metinleri çiz
+            ItemleriCizgiPaneliniEkle(g, "Switch", "Kamera", Color.Chartreuse, startX, startY, font, lineLength);
+            ItemleriCizgiPaneliniEkle(g, "Switch", "Yazıcı", Color.DarkOrange, startX, startY + aralik, font, lineLength);
+            ItemleriCizgiPaneliniEkle(g, "Switch", "KGS", Color.Fuchsia, startX, startY + aralik * 2, font, lineLength);
+            ItemleriCizgiPaneliniEkle(g, "Switch", "Switch", Color.Brown, startX, startY + aralik * 3, font, lineLength);
+        }
+
+        private void ItemleriCizgiPaneliniEkle(Graphics g, string item1, string item2, Color lineColor, int startX, int startY, Font font, int lineLength)
+        {
+            g.DrawLine(new Pen(lineColor, 2), startX, startY, startX + lineLength, startY);
+            g.DrawString(item1, font, Brushes.Black, startX - 40, startY - 7);
+            g.DrawString(item2, font, Brushes.Black, startX + lineLength + 10, startY - 7);
+        }
+    }
+}
