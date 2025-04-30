@@ -680,7 +680,7 @@ namespace Cihaz_Takip_Uygulaması
             public int SwitchRecNo { get; set; }
             public string GrupKod { get; set; }
             public string EnerjiPanoNo { get; set; }
-          
+
         }
         private void VeritabanindanCihazlariYukle()
         {
@@ -691,11 +691,11 @@ namespace Cihaz_Takip_Uygulaması
                 using (SqlConnection connection = new SqlConnection(connectionString))
                 {
                     string query = @"
-            SELECT c.RecNo, c.X, c.Y, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel, 
-                   c.SwitchRecNo, cg.Kod AS GrupKod, c.EnerjiPanoNo
-            FROM Cihaz c
-            INNER JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
-            WHERE c.X IS NOT NULL AND c.Y IS NOT NULL";
+        SELECT c.RecNo, c.X, c.Y, c.IPNo, c.Aciklama, c.Durum, c.MarkaModel, 
+               c.SwitchRecNo, cg.Kod AS GrupKod, c.EnerjiPanoNo
+        FROM Cihaz c
+        INNER JOIN CihazGrup cg ON c.GrupRecNo = cg.RecNo
+        WHERE c.X IS NOT NULL AND c.Y IS NOT NULL";
 
                     using (SqlCommand command = new SqlCommand(query, connection))
                     {
@@ -735,7 +735,8 @@ namespace Cihaz_Takip_Uygulaması
                     else
                         cihazlar = new List<CihazBilgileri>(tumCihazlar);
 
-                    panel1.Invalidate();
+                    panel1.Invalidate(); // Harita panelini yeniden çiz
+                    panelBilgi?.Invalidate(); // Bilgi panelini yeniden çiz
                 }
             }
             catch (Exception ex)
@@ -855,10 +856,10 @@ namespace Cihaz_Takip_Uygulaması
         }
         private void Panel1_MouseWheel(object sender, MouseEventArgs e)
         {
-          
+
             if (!ctrlPressed)
             {
-                
+
                 if (e is HandledMouseEventArgs hme)
                     hme.Handled = false;
                 return;
@@ -909,7 +910,7 @@ namespace Cihaz_Takip_Uygulaması
             panelBilgi = new Panel
             {
                 Location = new Point(panel1.Width - 250, 10),
-                Size = new Size(240, 150),
+                Size = new Size(240, 200),
                 BorderStyle = BorderStyle.FixedSingle,
                 BackColor = Color.White
             };
@@ -923,6 +924,7 @@ namespace Cihaz_Takip_Uygulaması
             // Panel her zaman en üstte görünsün
             panelBilgi.BringToFront();
         }
+
         private void CizgiPaneliniCiz(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -943,6 +945,14 @@ namespace Cihaz_Takip_Uygulaması
 
             // Switch-Switch Çizgisi
             ItemleriCizgiPaneliniEkle(g, "Switch", "Switch", Color.Brown, startY + 90, font, lineLength);
+
+            // Toplam UP ve DOWN cihaz bilgileri
+            int totalDown = tumCihazlar.Count(c => !string.IsNullOrEmpty(c.Durum) && c.Durum.IndexOf("Down", StringComparison.OrdinalIgnoreCase) >= 0);
+            int totalUp = tumCihazlar.Count(c => !string.IsNullOrEmpty(c.Durum) && c.Durum.IndexOf("Up", StringComparison.OrdinalIgnoreCase) >= 0);
+
+            // UP ve DOWN cihaz sayısını yazdır
+            g.DrawString($"Toplam UP: {totalUp}", font, Brushes.Green, 10, startY + 120);
+            g.DrawString($"Toplam DOWN: {totalDown}", font, Brushes.Red, 10, startY + 140);
         }
         private void ItemleriCizgiPaneliniEkle(Graphics g, string text1, string text2, Color lineColor, int yPos, Font font, int lineLength)
         {
