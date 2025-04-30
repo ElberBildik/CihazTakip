@@ -8,6 +8,9 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 
+using System.Drawing;
+using System.Drawing.Imaging;
+
 namespace Cihaz_Takip_Uygulaması
 {
     public partial class Harita : Form
@@ -61,6 +64,16 @@ namespace Cihaz_Takip_Uygulaması
         private ToolStripMenuItem menuBilgisayar;
         private ToolStripMenuItem menuDownCihazlar;
         private ToolStripMenuItem menuTumCihazlar;
+
+
+        private PictureBox yanipSonenResim;
+        private Timer animasyonTimer;
+        private Image orjinalResim;
+        private bool azaliyorMu = true; // Yanıp sönme için
+        private int opaklikDegeri = 255; // Tam görünürlük
+        private double sinüsDalgasiZamani = 0; // Sinüs fonksiyonu için zaman
+        private int orjinalWidth;
+        private int orjinalHeight;
 
         public Harita()
         {
@@ -910,7 +923,7 @@ namespace Cihaz_Takip_Uygulaması
             panelBilgi = new Panel
             {
                 Location = new Point(panel1.Width - 250, 10),
-                Size = new Size(240, 200),
+                Size = new Size(240, 300), // Yükseklik artırıldı
                 BorderStyle = BorderStyle.FixedSingle,
                 BackColor = Color.White
             };
@@ -923,7 +936,11 @@ namespace Cihaz_Takip_Uygulaması
 
             // Panel her zaman en üstte görünsün
             panelBilgi.BringToFront();
+
+            // Animasyonlu logo oluştur
+            LogoEkle(panelBilgi);
         }
+
 
         private void CizgiPaneliniCiz(object sender, PaintEventArgs e)
         {
@@ -931,7 +948,7 @@ namespace Cihaz_Takip_Uygulaması
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             Font font = new Font("Arial", 10);
-            int startY = 10;
+            int startY = 120; // Çizimler logonun altına kaydırıldı
             int lineLength = 100;
 
             // Kamera Çizgisi
@@ -967,5 +984,110 @@ namespace Cihaz_Takip_Uygulaması
             // Sağda metni çiz
             g.DrawString(text2, font, Brushes.Black, 180, yPos);
         }
+        private Image SetImageOpacity(Image image, float opacity)
+        {
+            try
+            {
+                Bitmap bmp = new Bitmap(image.Width, image.Height);
+                using (Graphics g = Graphics.FromImage(bmp))
+                {
+                    ColorMatrix matrix = new ColorMatrix();
+                    matrix.Matrix33 = opacity; // Alpha kanalı
+
+                    ImageAttributes attributes = new ImageAttributes();
+                    attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+
+                    g.DrawImage(image, new Rectangle(0, 0, bmp.Width, bmp.Height),
+                                0, 0, image.Width, image.Height,
+                                GraphicsUnit.Pixel, attributes);
+                }
+                return bmp;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Görüntü işleme hatası: " + ex.Message, "Hata",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return new Bitmap(1, 1); // Hata durumunda boş bir bitmap döndür
+            }
+        }
+        private void AnimasyonTimer_Tick(object sender, EventArgs e)
+        {
+            if (orjinalResim == null) return;
+
+            // Dalgalanma (sinüs dalgası)
+            double sinüsDeğeri = Math.Sin(sinüsDalgasiZamani); // Sinüs dalgası
+
+            // Sinüs dalgasına göre resmi büyütüp küçült
+            int yeniWidth = (int)(orjinalWidth + 5 * sinüsDeğeri); // 5: dalganın büyüklüğü
+            int yeniHeight = (int)(orjinalHeight + 5 * sinüsDeğeri);
+
+            // Yumuşak büyüyüp küçülme efekti
+            yanipSonenResim.Width = yeniWidth;
+            yanipSonenResim.Height = yeniHeight;
+
+            // Yanıp sönme efekti
+            if (azaliyorMu)
+            {
+                opaklikDegeri -= 5;
+                if (opaklikDegeri <= 100)
+                    azaliyorMu = false;
+            }
+            else
+            {
+                opaklikDegeri += 5;
+                if (opaklikDegeri >= 255)
+                    azaliyorMu = true;
+            }
+
+            if (orjinalResim != null)
+            {
+                using (Image transparentImage = SetImageOpacity(orjinalResim, (float)opaklikDegeri / 255f))
+                {
+                    yanipSonenResim.Image = new Bitmap(transparentImage);
+                }
+            }
+
+            sinüsDalgasiZamani += 0.1; // Hızını ayarlamak için değeri değiştirebilirsin
+        }
+        private void LogoEkle(Panel parentPanel)
+        {
+            try
+            {
+                // Logo yükle ve boyutlandır
+                orjinalResim = Image.FromFile(@"C:\Users\ebildik\Desktop\PNG\egelogo.png");
+                yanipSonenResim = new PictureBox
+                {
+                    Image = orjinalResim,
+                    SizeMode = PictureBoxSizeMode.StretchImage,
+                    Width = (int)(orjinalResim.Width * 0.4),
+                    Height = (int)(orjinalResim.Height * 0.4),
+                    BackColor = Color.Transparent,
+                    Location = new Point(70, 10) // Panel içindeki konumu
+                };
+                parentPanel.Controls.Add(yanipSonenResim);
+
+                // Orijinal boyutları kaydet
+                orjinalWidth = yanipSonenResim.Width;
+                orjinalHeight = yanipSonenResim.Height;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Logo yükleme hatası: " + ex.Message, "Uyarı",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            // Animasyon başlat
+            animasyonTimer = new Timer
+            {
+                Interval = 50 // Her 50 ms'de bir çalışsın
+            };
+            animasyonTimer.Tick += AnimasyonTimer_Tick;
+            animasyonTimer.Start();
+        }
+
     }
+
+
+
+
 }
