@@ -573,15 +573,41 @@ namespace Cihaz_Takip_Uygulaması
             string aciklama = aciklamaTxtBox.Text;
             string ipNo = IPTxtBox.Text;
             string switchPortNo = SwitchPortNoTxtBox.Text;
-
-            // Güncelleme için combo box değerini al - seçilmiş veya yazılmış olabilir
             string markaModel = GetComboBoxValue(cmbBoxMarka);
 
-            string enerjiPanoNo = EnerjiPanoNoTxtBox.Text;
-            string enerjiPanoSigortaNo = EnerjiPanoSigortaNoTxtBox.Text;
+            // Switch RecNo'yu ComboBox'tan al
+            int? switchRecNo = null;
+            if (cmbBoxSwitch.SelectedItem != null)
+            {
+                DataRowView dr = cmbBoxSwitch.SelectedItem as DataRowView;
+                if (dr != null)
+                {
+                    switchRecNo = Convert.ToInt32(dr["RecNo"]);
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(cmbBoxSwitch.Text))
+            {
+                // Kullanıcı manuel bir değer girdiyse, önce switch kaydı yapılmasını iste
+                MessageBox.Show(
+                    "Girdiğiniz switch sistemde kayıtlı değil. Lütfen önce yeni switch kaydı yapınız.",
+                    "Switch Bulunamadı",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return; // İşlemi sonlandır
+            }
 
-            // Switch RecNo'yu açıklamadan veya direct değerden al
-            int? switchRecNo = GetSwitchRecNoFromDescription(SwitchRecNoTxtBox.Text);
+            // Enerji Pano RecNo'yu ComboBox'tan al
+            int? enerjiPanoRecNo = null;
+            if (cmbBoxEnerjiPano.SelectedItem != null)
+            {
+                DataRowView dr = cmbBoxEnerjiPano.SelectedItem as DataRowView;
+                if (dr != null)
+                {
+                    enerjiPanoRecNo = Convert.ToInt32(dr["RecNo"]);
+                }
+            }
+
+            string enerjiPanoSigortaNo = EnerjiPanoSigortaNoTxtBox.Text;
 
             // X ve Y değerlerini TextBox'lardan al
             int xKoordinat = int.Parse(XTxtBox.Text);
@@ -590,30 +616,30 @@ namespace Cihaz_Takip_Uygulaması
             using (SqlConnection con = new SqlConnection(new ConnectionString().baglanti))
             {
                 string query = @"
-        UPDATE Cihaz SET
-            Aciklama = @Aciklama,
-            IPNo = @IPNo,
-            SwitchRecNo = @SwitchRecNo,
-            SwitchPortNo = @SwitchPortNo,
-            MarkaModel = @MarkaModel,
-            EnerjiPanoNo = @EnerjiPanoNo,
-            EnerjiPanoSigortaNo = @EnerjiPanoSigortaNo,
-            X = @X,                    -- X koordinatı eklendi
-            Y = @Y                     -- Y koordinatı eklendi
-        WHERE RecNo = @RecNo";
+            UPDATE Cihaz SET
+                Aciklama = @Aciklama,
+                IPNo = @IPNo,
+                SwitchRecNo = @SwitchRecNo,
+                SwitchPortNo = @SwitchPortNo,
+                MarkaModel = @MarkaModel,
+                EnerjiPanoNo = @EnerjiPanoNo,
+                EnerjiPanoSigortaNo = @EnerjiPanoSigortaNo,
+                X = @X,
+                Y = @Y
+            WHERE RecNo = @RecNo";
 
                 using (SqlCommand cmd = new SqlCommand(query, con))
                 {
                     cmd.Parameters.AddWithValue("@RecNo", currentRecNo.Value);
                     cmd.Parameters.AddWithValue("@Aciklama", aciklama);
-                    cmd.Parameters.AddWithValue("@IPNo", ipNo);
+                    cmd.Parameters.AddWithValue("@IPNo", !string.IsNullOrWhiteSpace(ipNo) ? ipNo : (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@SwitchRecNo", (object)switchRecNo ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@SwitchPortNo", switchPortNo);
-                    cmd.Parameters.AddWithValue("@MarkaModel", markaModel);
-                    cmd.Parameters.AddWithValue("@EnerjiPanoNo", enerjiPanoNo);
-                    cmd.Parameters.AddWithValue("@EnerjiPanoSigortaNo", enerjiPanoSigortaNo);
-                    cmd.Parameters.AddWithValue("@X", xKoordinat);  // X parametresi eklendi
-                    cmd.Parameters.AddWithValue("@Y", yKoordinat);  // Y parametresi eklendi
+                    cmd.Parameters.AddWithValue("@SwitchPortNo", !string.IsNullOrWhiteSpace(switchPortNo) ? switchPortNo : (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@MarkaModel", !string.IsNullOrWhiteSpace(markaModel) ? markaModel : (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@EnerjiPanoNo", (object)enerjiPanoRecNo ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@EnerjiPanoSigortaNo", !string.IsNullOrWhiteSpace(enerjiPanoSigortaNo) ? enerjiPanoSigortaNo : (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@X", xKoordinat);
+                    cmd.Parameters.AddWithValue("@Y", yKoordinat);
 
                     try
                     {
