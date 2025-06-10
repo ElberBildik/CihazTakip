@@ -1,0 +1,190 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Windows.Forms;
+
+namespace Cihaz_Takip_Uygulaması
+{
+    public partial class frmRapor : Form
+    {
+        public frmRapor()
+        {
+            InitializeComponent();
+            TreeViewCihazlariYukle();
+            treeView1.CheckBoxes = true;
+
+            treeView1.AfterCheck += treeView1_AfterCheck;
+            dateTimePickerBasla.ValueChanged += TarihSecimDegisti;
+            dateTimePickerBitis.ValueChanged += TarihSecimDegisti;
+        }
+
+        private void frmRapor_Load(object sender, EventArgs e)
+        {
+            TreeViewCihazlariYukle();
+        }
+
+        private void TreeViewCihazlariYukle()
+        {
+            treeView1.Nodes.Clear();
+            string connStr = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
+
+            using (SqlConnection conn = new SqlConnection(connStr))
+            {
+                conn.Open();
+
+                string grupQuery = "SELECT RecNo, Kod FROM CihazGrup";
+                SqlCommand grupCmd = new SqlCommand(grupQuery, conn);
+                SqlDataReader grupReader = grupCmd.ExecuteReader();
+
+                while (grupReader.Read())
+                {
+                    int grupId = grupReader.GetInt32(0);
+                    string grupKod = grupReader.GetString(1);
+
+                    TreeNode grupNode = new TreeNode(grupKod);
+                    grupNode.Tag = grupId;
+                    treeView1.Nodes.Add(grupNode);
+                }
+
+                grupReader.Close();
+
+                string cihazQuery = "SELECT RecNo, Aciklama, GrupRecNo FROM Cihaz";
+                SqlCommand cihazCmd = new SqlCommand(cihazQuery, conn);
+                SqlDataReader cihazReader = cihazCmd.ExecuteReader();
+
+                while (cihazReader.Read())
+                {
+                    int cihazId = cihazReader.GetInt32(0);
+                    string cihazAdi = cihazReader.IsDBNull(1) ? "Cihaz" : cihazReader.GetString(1);
+                    int grupId = cihazReader.GetInt32(2);
+
+                    foreach (TreeNode grupNode in treeView1.Nodes)
+                    {
+                        if ((int)grupNode.Tag == grupId)
+                        {
+                            TreeNode cihazNode = new TreeNode(cihazAdi);
+                            cihazNode.Tag = cihazId;
+                            grupNode.Nodes.Add(cihazNode);
+                            break;
+                        }
+                    }
+                }
+
+                cihazReader.Close();
+            }
+
+            treeView1.ExpandAll();
+        }
+
+        private void treeView1_AfterCheck(object sender, TreeViewEventArgs e)
+        {
+            treeView1.AfterCheck -= treeView1_AfterCheck;
+
+            if (e.Node.Level == 1) // Cihaz düğümü
+            {
+                foreach (TreeNode grupNode in treeView1.Nodes)
+                {
+                    foreach (TreeNode cihazNode in grupNode.Nodes)
+                    {
+                        if (cihazNode != e.Node)
+                            cihazNode.Checked = false;
+                    }
+                }
+            }
+            else if (e.Node.Level == 0) // Grup düğümü
+            {
+                foreach (TreeNode child in e.Node.Nodes)
+                {
+                    child.Checked = e.Node.Checked;
+                }
+            }
+
+            treeView1.AfterCheck += treeView1_AfterCheck;
+
+            LoglariYukle();
+        }
+
+        private void TarihSecimDegisti(object sender, EventArgs e)
+        {
+            if (dateTimePickerBasla.Value > dateTimePickerBitis.Value)
+            {
+                MessageBox.Show("Başlangıç tarihi, bitiş tarihinden büyük olamaz!", "Uyarı", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            LoglariYukle();
+        }
+
+        private void LoglariYukle()
+        {
+            DateTime baslangic = dateTimePickerBasla.Value;
+            DateTime bitis = dateTimePickerBitis.Value;
+
+            DataTable dt = new DataTable();
+            dt.Columns.Add("Cihaz");
+            dt.Columns.Add("DownTime");
+            dt.Columns.Add("UpTime");
+            dt.Columns.Add("Fark"); // Süre farkı sütunu
+
+            string connStr = "Data Source=ES-BT14\\SQLEXPRESS;Initial Catalog=CihazTakip;Integrated Security=True";
+
+            using (SqlConnection conn = new SqlConnection(connStr))
+            {
+                conn.Open();
+
+                foreach (TreeNode grupNode in treeView1.Nodes)
+                {
+                    foreach (TreeNode cihazNode in grupNode.Nodes)
+                    {
+                        if (cihazNode.Checked)
+                        {
+                            int cihazId = (int)cihazNode.Tag;
+                            string cihazAdi = cihazNode.Text;
+
+                            string query = @"
+                                SELECT DownTime, UpTime 
+                                FROM Log 
+                                WHERE CihazRecNo = @CihazID 
+                                AND (
+                                    (DownTime BETWEEN @Basla AND @Bitis) 
+                                    OR (UpTime BETWEEN @Basla AND @Bitis) 
+                                    OR (DownTime <= @Basla AND UpTime >= @Bitis)
+                                )";
+
+                            SqlCommand cmd = new SqlCommand(query, conn);
+                            cmd.Parameters.AddWithValue("@CihazID", cihazId);
+                            cmd.Parameters.AddWithValue("@Basla", baslangic);
+                            cmd.Parameters.AddWithValue("@Bitis", bitis);
+
+                            SqlDataReader reader = cmd.ExecuteReader();
+
+                            while (reader.Read())
+                            {
+                                DateTime down, up;
+
+                                if (reader.IsDBNull(0) || reader.IsDBNull(1))
+                                {
+                                    // Eğer DownTime veya UpTime null ise bu satırı atla
+                                    continue;
+                                }
+                                else
+                                {
+                                    down = reader.GetDateTime(0);
+                                    up = reader.GetDateTime(1);
+                                }
+
+                                TimeSpan fark = up - down;
+                                string farkYazi = $"{(int)fark.TotalHours} saat {fark.Minutes} dk";
+
+                                dt.Rows.Add(cihazAdi, down.ToString("g"), up.ToString("g"), farkYazi);
+                            }
+
+                            reader.Close();
+                        }
+                    }
+                }
+            }
+
+            dataGridViewLog.DataSource = dt;
+        }
+    }
+}
